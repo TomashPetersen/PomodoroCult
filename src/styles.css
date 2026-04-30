@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 400px;
+    height: 600px;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    background: #fafafa;
+  }
+
+  button,
+  input {
+    letter-spacing: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 999px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+  }
+}

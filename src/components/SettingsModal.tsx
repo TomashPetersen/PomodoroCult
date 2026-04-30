@@ -1,0 +1,110 @@
+import { Minus, Plus, Save, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { cn } from '../lib/ui';
+import { Settings } from '../lib/types';
+import { useAppStore } from '../store/useAppStore';
+
+const numberFields: Array<{ key: keyof Settings; label: string; min: number; max: number }> = [
+  { key: 'workTime', label: 'Рабочее время', min: 1, max: 180 },
+  { key: 'shortBreak', label: 'Перерыв', min: 1, max: 60 },
+  { key: 'longBreak', label: 'Долгий перерыв', min: 1, max: 120 },
+  { key: 'longBreakInterval', label: 'Долгий перерыв после', min: 1, max: 20 }
+];
+
+export const SettingsModal = () => {
+  const open = useAppStore((state) => state.settingsOpen);
+  const settings = useAppStore((state) => state.settings);
+  const closeSettings = useAppStore((state) => state.closeSettings);
+  const saveSettings = useAppStore((state) => state.saveSettings);
+  const [draft, setDraft] = useState<Settings>(settings);
+
+  useEffect(() => {
+    if (open) setDraft(settings);
+  }, [open, settings]);
+
+  if (!open) return null;
+
+  const setValue = (key: keyof Settings, value: number) => {
+    const field = numberFields.find((item) => item.key === key);
+    const min = field?.min ?? 1;
+    const max = field?.max ?? 999;
+    const nextValue = Math.max(min, Math.min(max, Math.round(value || min)));
+    setDraft((current) => ({
+      ...current,
+      [key]: nextValue
+    }));
+  };
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/82 p-5 backdrop-blur-md dark:bg-zinc-950/82">
+      <div className="w-full rounded-xl border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Настройки</h2>
+          <button
+            type="button"
+            onClick={closeSettings}
+            className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
+            aria-label="Закрыть"
+            title="Закрыть"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {numberFields.map((field) => (
+            <label
+              key={field.key}
+              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              <span className="min-w-0 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                {field.label}
+              </span>
+
+              <div className="flex h-9 shrink-0 items-center rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
+                <button
+                  type="button"
+                  onClick={() => setValue(field.key, draft[field.key] - 1)}
+                  className="grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
+                  aria-label="Уменьшить"
+                  title="Уменьшить"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  min={field.min}
+                  max={field.max}
+                  value={draft[field.key]}
+                  onChange={(event) => setValue(field.key, Number(event.target.value))}
+                  className="h-9 w-14 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setValue(field.key, draft[field.key] + 1)}
+                  className="grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
+                  aria-label="Увеличить"
+                  title="Увеличить"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void saveSettings(draft)}
+          className={cn(
+            'mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800',
+            'dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200'
+          )}
+        >
+          <Save className="h-4 w-4" />
+          Сохранить
+        </button>
+      </div>
+    </div>
+  );
+};
