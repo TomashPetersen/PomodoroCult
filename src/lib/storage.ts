@@ -1,8 +1,7 @@
+import { NO_TASK_ID, NO_TASK_TITLE, TASK_TITLE_MAX_LENGTH } from './constants';
 import {
   DEFAULT_SETTINGS,
   DailyStatistics,
-  NO_TASK_ID,
-  NO_TASK_TITLE,
   Settings,
   Statistics,
   StoredData,
@@ -11,8 +10,6 @@ import {
   TimerMode,
   TimerState
 } from './types';
-
-const MAX_TASK_TITLE_LENGTH = 12;
 
 export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerState => ({
   isRunning: false,
@@ -30,7 +27,7 @@ export const getDurationSeconds = (settings: Settings, mode: TimerMode): number 
 };
 
 export const clampTaskTitle = (title: string): string =>
-  title.trim().replace(/\s+/g, ' ').slice(0, MAX_TASK_TITLE_LENGTH);
+  title.trim().replace(/\s+/g, ' ').slice(0, TASK_TITLE_MAX_LENGTH);
 
 export const createId = (): string => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -137,6 +134,36 @@ export const getDateRange = (endDateKey: string, days: number): string[] => {
   }
 
   return result;
+};
+
+export const getDateRangeBetween = (startDateKey: string, endDateKey: string): string[] => {
+  const start = new Date(`${startDateKey}T12:00:00`);
+  const end = new Date(`${endDateKey}T12:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return [];
+  }
+
+  const result: string[] = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    result.push(getLocalDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return result;
+};
+
+export const getPresetStatsRange = (
+  days: number,
+  endDateKey = getLocalDateKey()
+): { start: string; end: string } => {
+  const range = getDateRange(endDateKey, days);
+  return {
+    start: range[0] ?? endDateKey,
+    end: range[range.length - 1] ?? endDateKey
+  };
 };
 
 export const addSessionStatistics = (

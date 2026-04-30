@@ -1,7 +1,7 @@
 export type TimerMode = 'work' | 'shortBreak' | 'longBreak';
 export type ThemeMode = 'light' | 'dark';
 export type AppScreen = 'timer' | 'tasks' | 'stats';
-export type StatsPeriod = '1d' | '7d' | '30d';
+export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 
 export interface Settings {
   workTime: number;
@@ -60,7 +60,7 @@ export interface StartTimerPayload {
 }
 
 export type RuntimeMessage =
-  | { type: 'POPUP_START_TIMER' }
+  | { type: 'POPUP_START_TIMER'; payload: { mode: TimerMode } }
   | { type: 'POPUP_PAUSE_TIMER' }
   | { type: 'POPUP_RESET_TIMER' }
   | { type: 'POPUP_ENSURE_READY' }
@@ -77,9 +77,6 @@ export type RuntimeMessage =
         statSeconds: number;
       };
     };
-
-export const NO_TASK_ID = 'task-no-task';
-export const NO_TASK_TITLE = 'Без задачи';
 
 export const DEFAULT_SETTINGS: Settings = {
   workTime: 25,

@@ -1,7 +1,7 @@
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
+import { NO_TASK_ID, TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 import { cn } from '../lib/ui';
-import { NO_TASK_ID } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 
 export const TasksScreen = () => {
@@ -12,7 +12,7 @@ export const TasksScreen = () => {
   const [title, setTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const canAdd = title.trim().length > 0 && title.trim().length <= 12;
+  const canAdd = title.trim().length > 0 && title.trim().length <= TASK_TITLE_MAX_LENGTH;
 
   const submitTask = async (event: FormEvent) => {
     event.preventDefault();
@@ -26,16 +26,16 @@ export const TasksScreen = () => {
       <form onSubmit={submitTask} className="flex h-12 items-center gap-2">
         <input
           value={title}
-          maxLength={12}
+          maxLength={TASK_TITLE_MAX_LENGTH}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Новая задача"
-          className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-rose-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:focus:border-rose-500"
+          className="h-10 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-rose-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:focus:border-rose-500"
         />
         <button
           type="submit"
           disabled={!canAdd}
           className={cn(
-            'grid h-10 w-10 place-items-center rounded-lg bg-zinc-950 text-white transition dark:bg-white dark:text-zinc-950',
+            'grid h-10 w-10 place-items-center rounded-xl bg-zinc-950 text-white transition dark:bg-white dark:text-zinc-950',
             !canAdd && 'cursor-not-allowed opacity-35'
           )}
           aria-label="Добавить"
@@ -49,20 +49,21 @@ export const TasksScreen = () => {
         {tasks.map((task) => {
           const editing = editingId === task.id;
           const system = task.system || task.id === NO_TASK_ID;
-          const canSaveEdit = editingTitle.trim().length > 0 && editingTitle.trim().length <= 12;
+          const canSaveEdit =
+            editingTitle.trim().length > 0 && editingTitle.trim().length <= TASK_TITLE_MAX_LENGTH;
 
           return (
             <div
               key={task.id}
-              className="flex min-h-12 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+              className="flex min-h-12 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
               {editing ? (
                 <input
                   value={editingTitle}
-                  maxLength={12}
+                  maxLength={TASK_TITLE_MAX_LENGTH}
                   autoFocus
                   onChange={(event) => setEditingTitle(event.target.value)}
-                  className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 text-sm text-zinc-950 outline-none focus:border-rose-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 text-sm text-zinc-950 outline-none focus:border-rose-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
                 />
               ) : (
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">

@@ -12,6 +12,20 @@ export const formatHoursMinutes = (totalSeconds: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
+export const formatDateLabel = (dateKey: string): string => {
+  const [year, month, day] = dateKey.split('-');
+  if (!year || !month || !day) return dateKey;
+  return `${day}.${month}.${year}`;
+};
+
+export const formatDateRange = (startDateKey: string, endDateKey: string): string => {
+  if (startDateKey === endDateKey) {
+    return formatDateLabel(startDateKey);
+  }
+
+  return `${formatDateLabel(startDateKey)} — ${formatDateLabel(endDateKey)}`;
+};
+
 export const pluralRu = (count: number, one: string, few: string, many: string): string => {
   const mod10 = count % 10;
   const mod100 = count % 100;

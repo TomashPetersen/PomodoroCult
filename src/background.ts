@@ -1,3 +1,4 @@
+import { NO_TASK_ID, NO_TASK_TITLE } from './lib/constants';
 import {
   addSessionStatistics,
   ensureNoTask,
@@ -7,7 +8,7 @@ import {
   setLocal,
   sortTasks
 } from './lib/storage';
-import { NO_TASK_ID, NO_TASK_TITLE, RuntimeMessage, StartTimerPayload, TimerState } from './lib/types';
+import { RuntimeMessage, StartTimerPayload, TimerMode, TimerState } from './lib/types';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
 
@@ -95,7 +96,21 @@ const resumeRunningTimer = async (): Promise<void> => {
   await sendMessage({ type: 'OFFSCREEN_RESUME_TIMER' });
 };
 
-const handleStartTimer = async (): Promise<TimerState> => {
+const buildRunningState = (
+  timerState: TimerState,
+  mode: TimerMode,
+  durationSeconds: number,
+  activeTaskId: string | null
+): TimerState => ({
+  ...timerState,
+  isRunning: true,
+  currentMode: mode,
+  remainingSeconds: durationSeconds,
+  targetEndTime: null,
+  activeTaskId
+});
+
+const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
   const data = await initializeStorage();
   const { settings } = data;
   let { tasks, timerState } = data;
@@ -106,44 +121,43 @@ const handleStartTimer = async (): Promise<TimerState> => {
     return timerState;
   }
 
-  tasks = ensureNoTask(tasks);
+  let activeTaskId = timerState.activeTaskId;
+  let nextTasks = tasks;
 
-  const selectedTaskExists = tasks.some((task) => task.id === timerState.activeTaskId);
-  const activeTaskId = selectedTaskExists ? timerState.activeTaskId : NO_TASK_ID;
-  const now = Date.now();
-  const nextTasks = sortTasks(
-    tasks.map((task) =>
-      task.id === activeTaskId
-        ? {
-            ...task,
-            usageCount: task.usageCount + 1,
-            lastUsed: now
-          }
-        : task
-    )
-  );
+  if (mode === 'work') {
+    nextTasks = ensureNoTask(tasks);
+    const selectedTaskExists = nextTasks.some((task) => task.id === timerState.activeTaskId);
+    activeTaskId = selectedTaskExists ? timerState.activeTaskId : NO_TASK_ID;
+    const now = Date.now();
+
+    nextTasks = sortTasks(
+      nextTasks.map((task) =>
+        task.id === activeTaskId
+          ? {
+              ...task,
+              usageCount: task.usageCount + 1,
+              lastUsed: now
+            }
+          : task
+      )
+    );
+  }
+
   const durationSeconds =
-    timerState.currentMode === 'work' && timerState.remainingSeconds > 0
+    timerState.currentMode === mode && timerState.remainingSeconds > 0
       ? timerState.remainingSeconds
-      : getDurationSeconds(settings, 'work');
-  const nextState: TimerState = {
-    ...timerState,
-    isRunning: true,
-    currentMode: 'work',
-    remainingSeconds: durationSeconds,
-    targetEndTime: null,
-    activeTaskId
-  };
+      : getDurationSeconds(settings, mode);
+  const nextState = buildRunningState(timerState, mode, durationSeconds, activeTaskId ?? null);
 
   await setLocal({
     tasks: nextTasks,
     timerState: nextState
   });
   await startOffscreenTimer({
-    mode: 'work',
+    mode,
     durationSeconds,
-    activeTaskId,
-    statSeconds: getDurationSeconds(settings, 'work')
+    activeTaskId: activeTaskId ?? null,
+    statSeconds: getDurationSeconds(settings, mode)
   });
 
   return nextState;
@@ -152,7 +166,7 @@ const handleStartTimer = async (): Promise<TimerState> => {
 const handlePauseTimer = async (): Promise<TimerState> => {
   const { timerState } = await readStoredData();
 
-  if (!timerState.isRunning || timerState.currentMode !== 'work') {
+  if (!timerState.isRunning) {
     return timerState;
   }
 
@@ -178,7 +192,8 @@ const handleResetTimer = async (): Promise<TimerState> => {
     isRunning: false,
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
-    targetEndTime: null
+    targetEndTime: null,
+    completedSessions: 0
   };
 
   await setLocal({ timerState: nextState });
@@ -216,7 +231,7 @@ const handleTimerCompleted = async (
 
     const nextState: TimerState = {
       ...timerState,
-      isRunning: true,
+      isRunning: false,
       currentMode: nextMode,
       remainingSeconds: nextDuration,
       targetEndTime: null,
@@ -229,12 +244,6 @@ const handleTimerCompleted = async (
       statistics,
       timerState: nextState
     });
-    await startOffscreenTimer({
-      mode: nextMode,
-      durationSeconds: nextDuration,
-      activeTaskId,
-      statSeconds: nextDuration
-    });
 
     return nextState;
   }
@@ -244,11 +253,11 @@ const handleTimerCompleted = async (
     isRunning: false,
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
-    targetEndTime: null
+    targetEndTime: null,
+    activeTaskId: timerState.activeTaskId
   };
 
   await setLocal({ timerState: nextState });
-  await stopOffscreenTimer();
   return nextState;
 };
 
@@ -273,7 +282,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':
-        sendResponse({ ok: true, timerState: await handleStartTimer() });
+        sendResponse({ ok: true, timerState: await handleStartTimer(message.payload.mode) });
         return;
       case 'POPUP_PAUSE_TIMER':
         sendResponse({ ok: true, timerState: await handlePauseTimer() });

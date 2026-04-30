@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { SettingsModal } from './components/SettingsModal';
 import { FooterNav } from './components/FooterNav';
+import { ResetConfirmModal } from './components/ResetConfirmModal';
+import { SettingsModal } from './components/SettingsModal';
 import { StatsScreen } from './components/StatsScreen';
 import { TasksScreen } from './components/TasksScreen';
 import { TimerScreen } from './components/TimerScreen';
@@ -16,8 +17,8 @@ export const App = () => {
   }, [initialize]);
 
   return (
-    <div className="relative h-[600px] w-[400px] overflow-hidden bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-white">
-      <main className="h-[536px] overflow-hidden px-5 pb-2 pt-4">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-white">
+      <main className="min-h-0 flex-1 overflow-hidden px-4 pb-3 pt-4 sm:px-5">
         {!hydrated ? (
           <div className="grid h-full place-items-center text-sm text-zinc-500 dark:text-zinc-400">
             Pomodoro Cult
@@ -32,6 +33,7 @@ export const App = () => {
       </main>
       <FooterNav />
       <SettingsModal />
+      <ResetConfirmModal />
     </div>
   );
 };
