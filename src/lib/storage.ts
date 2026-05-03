@@ -26,6 +26,13 @@ export const getDurationSeconds = (settings: Settings, mode: TimerMode): number 
   return settings.longBreak * 60;
 };
 
+export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
+  if (timerState.isRunning) return true;
+  if (timerState.currentMode !== 'work') return true;
+  if (timerState.completedSessions > 0) return true;
+  return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
+};
+
 export const clampTaskTitle = (title: string): string =>
   title.trim().replace(/\s+/g, ' ').slice(0, TASK_TITLE_MAX_LENGTH);
 

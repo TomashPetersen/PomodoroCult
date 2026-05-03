@@ -10,6 +10,7 @@ import {
   getLocalDateKey,
   getPresetStatsRange,
   initializeStorage,
+  isTimerTaskLocked,
   normalizeSettings,
   setLocal,
   sortTasks
@@ -192,7 +193,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         const response = await sendRuntimeMessage({ type: 'POPUP_ENSURE_READY' });
         if (response && !response.ok) {
-          throw new Error(response.error || 'Runtime initialization failed');
+          throw new Error(response.error || 'Не удалось подготовить фоновый таймер.');
         }
       } catch (error) {
         set({
@@ -260,7 +261,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Start timer failed');
+        throw new Error(response?.error || 'Не удалось запустить таймер.');
+      }
+
+      if (response.timerState) {
+        set({ timerState: response.timerState, selectedTimerMode: response.timerState.currentMode });
       }
     } catch (error) {
       set({
@@ -281,7 +286,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await sendRuntimeMessage({ type: 'POPUP_PAUSE_TIMER' });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Pause timer failed');
+        throw new Error(response?.error || 'Не удалось поставить таймер на паузу.');
+      }
+
+      if (response.timerState) {
+        set({ timerState: response.timerState });
       }
     } catch (error) {
       set({
@@ -305,22 +314,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await sendRuntimeMessage({ type: 'POPUP_RESET_TIMER' });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Reset timer failed');
+        throw new Error(response?.error || 'Не удалось остановить таймер.');
       }
 
       set({
+        ...(response.timerState ? { timerState: response.timerState } : {}),
         selectedTimerMode: 'work'
       });
     } catch (error) {
       set({
-        runtimeError: getActionError(error, 'Не удалось сбросить таймер.')
+        runtimeError: getActionError(error, 'Не удалось остановить таймер.')
       });
     }
   },
 
   selectTask: async (taskId) => {
-    const { timerState, tasks } = get();
-    if (timerState.isRunning) return;
+    const { settings, timerState, tasks } = get();
+    if (isTimerTaskLocked(settings, timerState)) return;
 
     const exists = taskId === null || tasks.some((task) => task.id === taskId);
     if (!exists) return;

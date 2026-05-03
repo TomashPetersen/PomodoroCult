@@ -100,13 +100,14 @@ const buildRunningState = (
   timerState: TimerState,
   mode: TimerMode,
   durationSeconds: number,
+  targetEndTime: number,
   activeTaskId: string | null
 ): TimerState => ({
   ...timerState,
   isRunning: true,
   currentMode: mode,
   remainingSeconds: durationSeconds,
-  targetEndTime: null,
+  targetEndTime,
   activeTaskId
 });
 
@@ -147,7 +148,14 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
     timerState.currentMode === mode && timerState.remainingSeconds > 0
       ? timerState.remainingSeconds
       : getDurationSeconds(settings, mode);
-  const nextState = buildRunningState(timerState, mode, durationSeconds, activeTaskId ?? null);
+  const targetEndTime = Date.now() + durationSeconds * 1000;
+  const nextState = buildRunningState(
+    timerState,
+    mode,
+    durationSeconds,
+    targetEndTime,
+    activeTaskId ?? null
+  );
 
   await setLocal({
     tasks: nextTasks,

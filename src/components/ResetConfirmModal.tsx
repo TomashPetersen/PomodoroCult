@@ -16,7 +16,7 @@ export const ResetConfirmModal = () => {
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">Подтвердите сброс</h2>
+            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">Подтвердите стоп</h2>
             <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
               Таймер будет остановлен, счетчик циклов обнулится, а экран вернется к вкладке
               «Помодоро». Уже сохраненная статистика останется.
@@ -37,7 +37,7 @@ export const ResetConfirmModal = () => {
             onClick={() => void confirmReset()}
             className="h-11 rounded-xl bg-rose-600 text-sm font-semibold text-white transition hover:bg-rose-500"
           >
-            Сбросить
+            Стоп
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import { AlertCircle, Moon, Pause, Play, RotateCcw, Settings, Sun, X } from 'lucide-react';
+import { AlertCircle, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { TIMER_MODE_LABELS } from '../lib/constants';
 import { formatClock } from '../lib/format';
 import { getDurationSeconds } from '../lib/storage';
@@ -21,11 +22,16 @@ export const TimerScreen = () => {
   const startTimer = useAppStore((state) => state.startTimer);
   const pauseTimer = useAppStore((state) => state.pauseTimer);
   const openResetConfirm = useAppStore((state) => state.openResetConfirm);
+  const [now, setNow] = useState(() => Date.now());
 
   const displayMode = timerState.isRunning ? timerState.currentMode : selectedMode;
   const modeDuration = getDurationSeconds(settings, displayMode);
+  const liveRemainingSeconds =
+    timerState.isRunning && timerState.targetEndTime
+      ? Math.max(0, Math.ceil((timerState.targetEndTime - now) / 1000))
+      : timerState.remainingSeconds;
   const displaySeconds = timerState.isRunning
-    ? timerState.remainingSeconds
+    ? liveRemainingSeconds
     : selectedMode === timerState.currentMode
       ? timerState.remainingSeconds
       : getDurationSeconds(settings, selectedMode);
@@ -38,6 +44,18 @@ export const TimerScreen = () => {
   const primaryIsPause = isViewingRunningMode;
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
   const showRunningHint = timerState.isRunning && selectedMode !== timerState.currentMode;
+  const showCompletedSessions = displayMode === 'work';
+
+  useEffect(() => {
+    if (!timerState.isRunning || !timerState.targetEndTime) return;
+
+    setNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [timerState.isRunning, timerState.targetEndTime]);
 
   const tabs: Array<{ mode: TimerMode; minutes: number }> = [
     { mode: 'work', minutes: settings.workTime },
@@ -69,18 +87,18 @@ export const TimerScreen = () => {
                 type="button"
                 onClick={() => setTimerMode(tab.mode)}
                 className={cn(
-                  'relative flex h-12 flex-col items-center justify-center rounded-lg px-1 text-center transition',
+                  'relative flex h-12 flex-col items-center justify-center rounded-lg px-1.5 text-center transition',
                   active
                     ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
                     : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100'
                 )}
               >
-                <span className="text-[11px] font-semibold leading-none">
+                <span className="max-w-full truncate text-[11px] font-semibold leading-none">
                   {TIMER_MODE_LABELS[tab.mode]}
                 </span>
                 <span className="mt-1 text-[11px] leading-none opacity-80">{tab.minutes} мин</span>
                 {running && (
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500" />
                 )}
               </button>
             );
@@ -129,16 +147,18 @@ export const TimerScreen = () => {
             />
           </svg>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-5 text-center">
-            <span className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          <div className="absolute inset-0 px-5 text-center">
+            <span className="absolute bottom-[calc(50%+2.9rem)] left-1/2 block -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               {TIMER_MODE_LABELS[displayMode]}
             </span>
-            <span className="font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
+            <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
               {formatClock(displaySeconds)}
             </span>
-            <span className="mt-4 inline-flex min-h-10 min-w-10 items-center justify-center rounded-full bg-rose-500 px-3 text-xs font-semibold text-white shadow-sm">
-              {timerState.completedSessions}
-            </span>
+            {showCompletedSessions && (
+              <span className="absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex min-h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-3 text-xs font-semibold text-white shadow-sm">
+                {timerState.completedSessions}
+              </span>
+            )}
           </div>
         </div>
 
@@ -175,10 +195,10 @@ export const TimerScreen = () => {
               'grid h-12 w-12 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
               'hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white'
             )}
-            aria-label="Сброс"
-            title="Сброс"
+            aria-label="Стоп"
+            title="Стоп"
           >
-            <RotateCcw className="h-5 w-5" />
+            <Square className="h-4 w-4 fill-current" />
           </button>
         </div>
 

@@ -34,16 +34,13 @@ export const StatsRangeModal = () => {
           </div>
           <div>
             <h2 className="text-base font-semibold text-zinc-950 dark:text-white">Выберите диапазон дат</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              Период учитывается включительно: от даты начала до даты окончания.
-            </p>
           </div>
         </div>
 
         <div className="mt-5 space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Start Date
+              Дата начала
             </span>
             <input
               type="date"
@@ -56,7 +53,7 @@ export const StatsRangeModal = () => {
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              End Date
+              Дата окончания
             </span>
             <input
               type="date"

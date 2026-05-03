@@ -21,7 +21,7 @@ export const App = () => {
       <main className="min-h-0 flex-1 overflow-hidden px-4 pb-3 pt-4 sm:px-5">
         {!hydrated ? (
           <div className="grid h-full place-items-center text-sm text-zinc-500 dark:text-zinc-400">
-            Pomodoro Cult
+            Помодоро Культ
           </div>
         ) : (
           <>
