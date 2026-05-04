@@ -5,7 +5,9 @@ let intervalId: number | null = null;
 let targetEndTime: number | null = null;
 let activePayload: StartTimerPayload | null = null;
 let tickInProgress = false;
-let chimeUrl: string | null = null;
+let fallbackChimeUrl: string | null = null;
+
+const COMPLETION_CHIME_PATH = 'sounds/completion-chime.mp3';
 
 const clearTimer = (): void => {
   if (intervalId !== null) {
@@ -14,7 +16,7 @@ const clearTimer = (): void => {
   }
 };
 
-const createChimeUrl = (): string => {
+const createFallbackChimeUrl = (): string => {
   const sampleRate = 44100;
   const durationSeconds = 0.65;
   const frameCount = Math.floor(sampleRate * durationSeconds);
@@ -54,15 +56,26 @@ const createChimeUrl = (): string => {
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 };
 
-const playCompletionChime = async (): Promise<void> => {
-  chimeUrl ??= createChimeUrl();
-  const audio = new Audio(chimeUrl);
-  audio.volume = 0.74;
+const getCompletionChimeUrl = (): string =>
+  chrome.runtime?.getURL?.(COMPLETION_CHIME_PATH) ?? COMPLETION_CHIME_PATH;
 
+const playAudio = async (src: string, volume: number): Promise<void> => {
+  const audio = new Audio(src);
+  audio.volume = volume;
+  await audio.play();
+};
+
+const playCompletionChime = async (): Promise<void> => {
   try {
-    await audio.play();
+    await playAudio(getCompletionChimeUrl(), 0.92);
   } catch {
-    // Chrome may reject playback in unusual extension states; the timer state still advances.
+    fallbackChimeUrl ??= createFallbackChimeUrl();
+
+    try {
+      await playAudio(fallbackChimeUrl, 0.8);
+    } catch {
+      // Chrome may reject playback in unusual extension states; the timer state still advances.
+    }
   }
 };
 

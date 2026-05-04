@@ -31,7 +31,6 @@ export const getDurationSeconds = (settings: Settings, mode: TimerMode): number 
 export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
   if (timerState.isRunning) return true;
   if (timerState.currentMode !== 'work') return true;
-  if (timerState.completedSessions > 0) return true;
   return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
 };
 
