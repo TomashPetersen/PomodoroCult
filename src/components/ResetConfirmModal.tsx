@@ -1,7 +1,9 @@
 import { AlertTriangle } from 'lucide-react';
+import { t } from '../lib/i18n';
 import { useAppStore } from '../store/useAppStore';
 
 export const ResetConfirmModal = () => {
+  const locale = useAppStore((state) => state.locale);
   const open = useAppStore((state) => state.resetConfirmOpen);
   const closeResetConfirm = useAppStore((state) => state.closeResetConfirm);
   const confirmReset = useAppStore((state) => state.confirmReset);
@@ -16,10 +18,9 @@ export const ResetConfirmModal = () => {
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">Подтвердите стоп</h2>
+            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{t(locale, 'confirmStop')}</h2>
             <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              Таймер будет остановлен, счетчик циклов обнулится, а экран вернется к вкладке
-              «Помодоро». Уже сохраненная статистика останется.
+              {t(locale, 'stopDescription')}
             </p>
           </div>
         </div>
@@ -30,14 +31,14 @@ export const ResetConfirmModal = () => {
             onClick={closeResetConfirm}
             className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white"
           >
-            Отмена
+            {t(locale, 'cancel')}
           </button>
           <button
             type="button"
             onClick={() => void confirmReset()}
             className="h-11 rounded-xl bg-rose-600 text-sm font-semibold text-white transition hover:bg-rose-500"
           >
-            Стоп
+            {t(locale, 'stop')}
           </button>
         </div>
       </div>

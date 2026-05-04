@@ -1,7 +1,9 @@
-import { NO_TASK_ID, NO_TASK_TITLE, TASK_TITLE_MAX_LENGTH } from './constants';
+import { NO_TASK_ID, TASK_TITLE_MAX_LENGTH } from './constants';
+import { getTaskTitle } from './i18n';
 import {
   DEFAULT_SETTINGS,
   DailyStatistics,
+  Locale,
   Settings,
   Statistics,
   StoredData,
@@ -54,7 +56,7 @@ export const createTask = (title: string, system = false): Task => ({
 
 export const createNoTask = (): Task => ({
   id: NO_TASK_ID,
-  title: NO_TASK_TITLE,
+  title: '',
   usageCount: 0,
   lastUsed: 0,
   system: true
@@ -65,9 +67,13 @@ export const normalizeSettings = (settings?: Partial<Settings>): Settings => ({
   shortBreak: Math.max(1, Math.round(Number(settings?.shortBreak ?? DEFAULT_SETTINGS.shortBreak))),
   longBreak: Math.max(1, Math.round(Number(settings?.longBreak ?? DEFAULT_SETTINGS.longBreak))),
   longBreakInterval: Math.max(
-    1,
+    2,
     Math.round(Number(settings?.longBreakInterval ?? DEFAULT_SETTINGS.longBreakInterval))
-  )
+  ),
+  languagePreference:
+    settings?.languagePreference === 'ru' || settings?.languagePreference === 'en'
+      ? settings.languagePreference
+      : 'auto'
 });
 
 export const normalizeTasks = (tasks?: Task[]): Task[] => {
@@ -76,14 +82,15 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
 
   for (const task of tasks ?? []) {
     const title = clampTaskTitle(task.title);
-    const id = task.id === NO_TASK_ID || title === NO_TASK_TITLE ? NO_TASK_ID : task.id || createId();
+    const id = task.id === NO_TASK_ID || task.system ? NO_TASK_ID : task.id || createId();
 
-    if (!title || seen.has(id)) continue;
+    if (id !== NO_TASK_ID && !title) continue;
+    if (seen.has(id)) continue;
     seen.add(id);
 
     normalized.push({
       id,
-      title: id === NO_TASK_ID ? NO_TASK_TITLE : title,
+      title: id === NO_TASK_ID ? '' : title,
       usageCount: Math.max(0, Number(task.usageCount) || 0),
       lastUsed: Math.max(0, Number(task.lastUsed) || 0),
       system: id === NO_TASK_ID || Boolean(task.system)
@@ -95,7 +102,7 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
 
 export const ensureNoTask = (tasks: Task[]): Task[] => {
   const normalized = normalizeTasks(tasks);
-  const existing = normalized.find((task) => task.id === NO_TASK_ID || task.title === NO_TASK_TITLE);
+  const existing = normalized.find((task) => task.id === NO_TASK_ID);
 
   if (!existing) {
     return sortTasks([createNoTask(), ...normalized]);
@@ -103,11 +110,10 @@ export const ensureNoTask = (tasks: Task[]): Task[] => {
 
   return sortTasks(
     normalized.map((task) =>
-      task.id === existing.id
+      task.id === NO_TASK_ID
         ? {
             ...task,
-            id: NO_TASK_ID,
-            title: NO_TASK_TITLE,
+            title: '',
             system: true
           }
         : task
@@ -116,12 +122,17 @@ export const ensureNoTask = (tasks: Task[]): Task[] => {
 };
 
 export const sortTasksByUse = (a: Task, b: Task): number => {
+  if (a.id === NO_TASK_ID && b.id !== NO_TASK_ID) return -1;
+  if (b.id === NO_TASK_ID && a.id !== NO_TASK_ID) return 1;
   if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
   if (b.lastUsed !== a.lastUsed) return b.lastUsed - a.lastUsed;
-  return a.title.localeCompare(b.title, 'ru');
+  return a.title.localeCompare(b.title, 'en');
 };
 
 export const sortTasks = (tasks: Task[]): Task[] => [...tasks].sort(sortTasksByUse);
+
+export const getDisplayTaskTitle = (locale: Locale, task: Pick<Task, 'id' | 'title'>): string =>
+  getTaskTitle(locale, task.id, task.title);
 
 export const getLocalDateKey = (date = new Date()): string => {
   const year = date.getFullYear();

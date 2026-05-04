@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { t } from './lib/i18n';
 import { FooterNav } from './components/FooterNav';
 import { ResetConfirmModal } from './components/ResetConfirmModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -9,6 +10,7 @@ import { useAppStore } from './store/useAppStore';
 
 export const App = () => {
   const hydrated = useAppStore((state) => state.hydrated);
+  const locale = useAppStore((state) => state.locale);
   const selectedScreen = useAppStore((state) => state.selectedScreen);
   const initialize = useAppStore((state) => state.initialize);
 
@@ -21,7 +23,7 @@ export const App = () => {
       <main className="min-h-0 flex-1 overflow-hidden px-4 pb-3 pt-4 sm:px-5">
         {!hydrated ? (
           <div className="grid h-full place-items-center text-sm text-zinc-500 dark:text-zinc-400">
-            Помодоро Культ
+            {t(locale, 'loading')}
           </div>
         ) : (
           <>

@@ -1,16 +1,17 @@
 import { BarChart3, ListTodo, Timer } from 'lucide-react';
-import { SCREEN_LABELS } from '../lib/constants';
+import { t } from '../lib/i18n';
 import { cn } from '../lib/ui';
 import { AppScreen } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 
-const items: Array<{ screen: AppScreen; icon: typeof Timer }> = [
-  { screen: 'timer', icon: Timer },
-  { screen: 'tasks', icon: ListTodo },
-  { screen: 'stats', icon: BarChart3 }
+const items: Array<{ screen: AppScreen; icon: typeof Timer; labelKey: 'screenTimer' | 'screenTasks' | 'screenStats' }> = [
+  { screen: 'timer', icon: Timer, labelKey: 'screenTimer' },
+  { screen: 'tasks', icon: ListTodo, labelKey: 'screenTasks' },
+  { screen: 'stats', icon: BarChart3, labelKey: 'screenStats' }
 ];
 
 export const FooterNav = () => {
+  const locale = useAppStore((state) => state.locale);
   const selectedScreen = useAppStore((state) => state.selectedScreen);
   const setScreen = useAppStore((state) => state.setScreen);
 
@@ -19,7 +20,7 @@ export const FooterNav = () => {
       {items.map((item) => {
         const Icon = item.icon;
         const active = selectedScreen === item.screen;
-        const label = SCREEN_LABELS[item.screen];
+        const label = t(locale, item.labelKey);
 
         return (
           <button

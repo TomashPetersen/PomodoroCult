@@ -1,13 +1,15 @@
 import { BarChart3, Calendar } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
-import { QUICK_STATS_PERIODS, STATS_PERIOD_LABELS } from '../lib/constants';
-import { formatDateRange, formatHoursMinutes, pluralRu } from '../lib/format';
+import { QUICK_STATS_PERIODS } from '../lib/constants';
+import { getStatsPeriodLabel, getTaskTitle, pluralizeSessions, t } from '../lib/i18n';
+import { formatDateRange, formatHoursMinutes } from '../lib/format';
 import { getDateRangeBetween } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
 import { StatsRangeModal } from './StatsRangeModal';
 
 export const StatsScreen = () => {
+  const locale = useAppStore((state) => state.locale);
   const statistics = useAppStore((state) => state.statistics);
   const tasks = useAppStore((state) => state.tasks);
   const statsPeriod = useAppStore((state) => state.statsPeriod);
@@ -69,20 +71,18 @@ export const StatsScreen = () => {
     if (!statsTaskSelectionTouched && selectedStatsTaskId !== rows[0].taskId) {
       applyAutoStatsTask(rows[0].taskId);
     }
-  }, [
-    applyAutoStatsTask,
-    rows,
-    selectedStatsTaskId,
-    statsTaskSelectionTouched
-  ]);
+  }, [applyAutoStatsTask, rows, selectedStatsTaskId, statsTaskSelectionTouched]);
 
   const selectedRow = rows.find((row) => row.taskId === selectedStatsTaskId) ?? rows[0] ?? null;
+  const selectedTitle = selectedRow
+    ? getTaskTitle(locale, selectedRow.taskId, selectedRow.title)
+    : null;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <header className="space-y-3">
         <div className="flex min-h-9 items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold text-zinc-950 dark:text-white">Статистика</h1>
+          <h1 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'stats')}</h1>
           <div className="grid grid-cols-3 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
             {QUICK_STATS_PERIODS.map((period) => (
               <button
@@ -96,7 +96,7 @@ export const StatsScreen = () => {
                     : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100'
                 )}
               >
-                {STATS_PERIOD_LABELS[period]}
+                {getStatsPeriodLabel(locale, period)}
               </button>
             ))}
           </div>
@@ -112,7 +112,7 @@ export const StatsScreen = () => {
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Диапазон
+              {t(locale, 'range')}
             </p>
             <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
               {formatDateRange(statsRangeStart, statsRangeEnd)}
@@ -124,7 +124,9 @@ export const StatsScreen = () => {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            {selectedRow ? `Сессии: ${selectedRow.title}` : 'Количество сессий'}
+            {selectedTitle
+              ? t(locale, 'sessionsMetric', { title: selectedTitle })
+              : t(locale, 'sessionsMetricEmpty')}
           </p>
           <p className="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
             {selectedRow?.sessions ?? 0}
@@ -132,7 +134,9 @@ export const StatsScreen = () => {
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            {selectedRow ? `Время: ${selectedRow.title}` : 'Общее время'}
+            {selectedTitle
+              ? t(locale, 'timeMetric', { title: selectedTitle })
+              : t(locale, 'timeMetricEmpty')}
           </p>
           <p className="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
             {formatHoursMinutes(selectedRow?.seconds ?? 0)}
@@ -144,7 +148,7 @@ export const StatsScreen = () => {
         {rows.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400 dark:text-zinc-500">
             <BarChart3 className="h-8 w-8" />
-            <p className="mt-3 text-sm">Нет данных за выбранный период</p>
+            <p className="mt-3 text-sm">{t(locale, 'noStats')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -165,11 +169,10 @@ export const StatsScreen = () => {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-zinc-950 dark:text-white">
-                      {row.title}
+                      {getTaskTitle(locale, row.taskId, row.title)}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {row.sessions}{' '}
-                      {pluralRu(row.sessions, 'сессия', 'сессии', 'сессий')}
+                      {row.sessions} {pluralizeSessions(locale, row.sessions)}
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-sm font-semibold text-zinc-700 dark:text-zinc-200">

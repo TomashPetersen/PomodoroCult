@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { NO_TASK_ID, NO_TASK_TITLE } from '../lib/constants';
+import { NO_TASK_ID } from '../lib/constants';
+import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
 import {
   applyThemeClass,
   clampTaskTitle,
@@ -18,6 +19,7 @@ import {
 import {
   AppScreen,
   DEFAULT_SETTINGS,
+  Locale,
   RuntimeMessage,
   Settings,
   Statistics,
@@ -40,6 +42,7 @@ interface RuntimeResponse {
 
 interface AppStore extends StoredData {
   hydrated: boolean;
+  locale: Locale;
   selectedScreen: AppScreen;
   selectedTimerMode: TimerMode;
   pulseStartMode: TimerMode | null;
@@ -116,6 +119,7 @@ const getActionError = (error: unknown, fallback: string): string =>
 export const useAppStore = create<AppStore>((set, get) => ({
   ...initialData,
   hydrated: false,
+  locale: detectBrowserLocale(),
   selectedScreen: 'timer',
   selectedTimerMode: 'work',
   pulseStartMode: null,
@@ -132,10 +136,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialize: async () => {
     try {
       const data = await initializeStorage();
+      const locale = resolveLocale(data.settings.languagePreference);
       applyThemeClass(data.theme);
 
       set({
         ...data,
+        locale,
         hydrated: true,
         selectedTimerMode: data.timerState.currentMode
       });
@@ -148,7 +154,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
             const patch: Partial<AppStore> = {};
 
             if (changes.settings?.newValue) {
-              patch.settings = normalizeSettings(changes.settings.newValue);
+              const settings = normalizeSettings(changes.settings.newValue);
+              patch.settings = settings;
+              patch.locale = resolveLocale(settings.languagePreference);
             }
 
             if (changes.tasks?.newValue) {
@@ -193,18 +201,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         const response = await sendRuntimeMessage({ type: 'POPUP_ENSURE_READY' });
         if (response && !response.ok) {
-          throw new Error(response.error || 'Не удалось подготовить фоновый таймер.');
+          throw new Error(response.error || t(locale, 'errorPrepareRuntime'));
         }
       } catch (error) {
         set({
-          runtimeError: getActionError(error, 'Не удалось инициализировать фоновый таймер.')
+          runtimeError: getActionError(error, t(locale, 'errorInitRuntime'))
         });
       }
     } catch (error) {
-      set({
+      set((state) => ({
         hydrated: true,
-        runtimeError: getActionError(error, 'Не удалось загрузить данные приложения.')
-      });
+        runtimeError: getActionError(error, t(state.locale, 'errorLoadData'))
+      }));
     }
   },
 
@@ -229,6 +237,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   saveSettings: async (rawSettings) => {
     const settings = normalizeSettings(rawSettings);
+    const locale = resolveLocale(settings.languagePreference);
     const { timerState } = get();
     const nextTimerState = timerState.isRunning
       ? timerState
@@ -240,6 +249,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     set({
       settings,
+      locale,
       timerState: nextTimerState,
       settingsOpen: false
     });
@@ -250,7 +260,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   startTimer: async () => {
-    const { selectedTimerMode } = get();
+    const { selectedTimerMode, locale } = get();
 
     set({ runtimeError: null, pulseStartMode: null });
 
@@ -261,7 +271,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Не удалось запустить таймер.');
+        throw new Error(response?.error || t(locale, 'errorStartTimer'));
       }
 
       if (response.timerState) {
@@ -269,13 +279,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({
-        runtimeError: getActionError(error, 'Не удалось запустить таймер.')
+        runtimeError: getActionError(error, t(locale, 'errorStartTimer'))
       });
     }
   },
 
   pauseTimer: async () => {
-    const { timerState, selectedTimerMode } = get();
+    const { timerState, selectedTimerMode, locale } = get();
     if (!timerState.isRunning || timerState.currentMode !== selectedTimerMode) {
       return;
     }
@@ -286,7 +296,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await sendRuntimeMessage({ type: 'POPUP_PAUSE_TIMER' });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Не удалось поставить таймер на паузу.');
+        throw new Error(response?.error || t(locale, 'errorPauseTimer'));
       }
 
       if (response.timerState) {
@@ -294,7 +304,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({
-        runtimeError: getActionError(error, 'Не удалось остановить таймер.')
+        runtimeError: getActionError(error, t(locale, 'errorPauseTimer'))
       });
     }
   },
@@ -304,6 +314,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closeResetConfirm: () => set({ resetConfirmOpen: false }),
 
   confirmReset: async () => {
+    const { locale } = get();
+
     set({
       resetConfirmOpen: false,
       runtimeError: null,
@@ -314,7 +326,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await sendRuntimeMessage({ type: 'POPUP_RESET_TIMER' });
 
       if (!response?.ok) {
-        throw new Error(response?.error || 'Не удалось остановить таймер.');
+        throw new Error(response?.error || t(locale, 'errorStopTimer'));
       }
 
       set({
@@ -323,7 +335,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
     } catch (error) {
       set({
-        runtimeError: getActionError(error, 'Не удалось остановить таймер.')
+        runtimeError: getActionError(error, t(locale, 'errorStopTimer'))
       });
     }
   },
@@ -349,13 +361,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!title) return;
 
     const { tasks } = get();
-    const duplicate = tasks.some((task) => task.title.toLowerCase() === title.toLowerCase());
+    const duplicate = tasks.some((task) => task.id !== NO_TASK_ID && task.title.toLowerCase() === title.toLowerCase());
     if (duplicate) return;
 
-    const nextTasks =
-      title === NO_TASK_TITLE
-        ? ensureNoTask(tasks)
-        : sortTasks([...tasks, createTask(title)]);
+    const nextTasks = sortTasks([...ensureNoTask(tasks), createTask(title)]);
 
     set({ tasks: nextTasks });
     await setLocal({ tasks: nextTasks });
@@ -370,7 +379,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!target || target.system || taskId === NO_TASK_ID) return;
 
     const duplicate = tasks.some(
-      (task) => task.id !== taskId && task.title.toLowerCase() === title.toLowerCase()
+      (task) => task.id !== taskId && task.id !== NO_TASK_ID && task.title.toLowerCase() === title.toLowerCase()
     );
     if (duplicate) return;
 

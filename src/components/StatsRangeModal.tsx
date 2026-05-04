@@ -1,10 +1,12 @@
 import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { t } from '../lib/i18n';
 import { formatDateLabel } from '../lib/format';
 import { getLocalDateKey } from '../lib/storage';
 import { useAppStore } from '../store/useAppStore';
 
 export const StatsRangeModal = () => {
+  const locale = useAppStore((state) => state.locale);
   const open = useAppStore((state) => state.statsRangeModalOpen);
   const statsRangeStart = useAppStore((state) => state.statsRangeStart);
   const statsRangeEnd = useAppStore((state) => state.statsRangeEnd);
@@ -33,14 +35,14 @@ export const StatsRangeModal = () => {
             <CalendarDays className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">Выберите диапазон дат</h2>
+            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{t(locale, 'chooseDateRange')}</h2>
           </div>
         </div>
 
         <div className="mt-5 space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Дата начала
+              {t(locale, 'startDate')}
             </span>
             <input
               type="date"
@@ -53,7 +55,7 @@ export const StatsRangeModal = () => {
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Дата окончания
+              {t(locale, 'endDate')}
             </span>
             <input
               type="date"
@@ -67,7 +69,10 @@ export const StatsRangeModal = () => {
         </div>
 
         <p className="mt-4 rounded-xl bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-          Текущий выбор: {formatDateLabel(draftStart)} — {formatDateLabel(draftEnd)}
+          {t(locale, 'currentSelection', {
+            start: formatDateLabel(draftStart),
+            end: formatDateLabel(draftEnd)
+          })}
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
@@ -76,7 +81,7 @@ export const StatsRangeModal = () => {
             onClick={closeStatsRangeModal}
             className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white"
           >
-            Отмена
+            {t(locale, 'cancel')}
           </button>
           <button
             type="button"
@@ -84,7 +89,7 @@ export const StatsRangeModal = () => {
             onClick={() => applyCustomStatsRange(draftStart, draftEnd)}
             className="h-11 rounded-xl bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
           >
-            Применить
+            {t(locale, 'apply')}
           </button>
         </div>
       </div>

@@ -2,12 +2,15 @@ export type TimerMode = 'work' | 'shortBreak' | 'longBreak';
 export type ThemeMode = 'light' | 'dark';
 export type AppScreen = 'timer' | 'tasks' | 'stats';
 export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
+export type Locale = 'ru' | 'en';
+export type LanguagePreference = 'auto' | Locale;
 
 export interface Settings {
   workTime: number;
   shortBreak: number;
   longBreak: number;
   longBreakInterval: number;
+  languagePreference: LanguagePreference;
 }
 
 export interface Task {
@@ -82,7 +85,8 @@ export const DEFAULT_SETTINGS: Settings = {
   workTime: 25,
   shortBreak: 5,
   longBreak: 15,
-  longBreakInterval: 5
+  longBreakInterval: 5,
+  languagePreference: 'auto'
 };
 
 export const STORAGE_KEYS = {

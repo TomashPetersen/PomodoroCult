@@ -1,4 +1,4 @@
-import { NO_TASK_ID, NO_TASK_TITLE } from './lib/constants';
+import { NO_TASK_ID } from './lib/constants';
 import {
   addSessionStatistics,
   ensureNoTask,
@@ -224,7 +224,7 @@ const handleTimerCompleted = async (
     tasks = ensureNoTask(tasks);
     const activeTaskId = timerState.activeTaskId ?? payload.activeTaskId ?? NO_TASK_ID;
     const activeTask = tasks.find((task) => task.id === activeTaskId);
-    const taskTitle = activeTask?.title ?? NO_TASK_TITLE;
+    const taskTitle = activeTask?.title ?? '';
     const completedSessions = timerState.completedSessions + 1;
     const nextMode =
       completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';

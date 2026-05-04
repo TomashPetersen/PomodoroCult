@@ -1,12 +1,13 @@
 import { Check, ChevronDown, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { NO_TASK_TITLE } from '../lib/constants';
-import { isTimerTaskLocked, sortTasks } from '../lib/storage';
+import { getTaskTitle, t } from '../lib/i18n';
+import { getDisplayTaskTitle, isTimerTaskLocked, sortTasks } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
 
 export const TaskSelect = () => {
   const [open, setOpen] = useState(false);
+  const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
   const tasks = useAppStore((state) => state.tasks);
   const timerState = useAppStore((state) => state.timerState);
@@ -32,11 +33,11 @@ export const TaskSelect = () => {
           'dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700',
           taskSelectionLocked && 'cursor-not-allowed opacity-60'
         )}
-        aria-label="Выбор задачи"
-        title={taskSelectionLocked ? 'Чтобы сменить задачу, нажмите Стоп' : 'Выбор задачи'}
+        aria-label={t(locale, 'taskSelect')}
+        title={taskSelectionLocked ? t(locale, 'taskChangeRequiresStop') : t(locale, 'taskSelect')}
       >
         <span className={cn('truncate', !selectedTask && 'text-zinc-500 dark:text-zinc-400')}>
-          {selectedTask?.title ?? NO_TASK_TITLE}
+          {selectedTask ? getDisplayTaskTitle(locale, selectedTask) : t(locale, 'noTask')}
         </span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} />
       </button>
@@ -44,14 +45,14 @@ export const TaskSelect = () => {
       {open && (
         <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[18rem] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-soft dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-2 pb-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            <span>Задача для текущего цикла</span>
-            <span>Смена доступна до старта</span>
+            <span>{t(locale, 'taskForCycle')}</span>
+            <span>{t(locale, 'taskChangeBeforeStart')}</span>
           </div>
 
           <div className="mt-2 max-h-[11rem] space-y-1 overflow-y-auto pr-1">
             {sortedTasks.length === 0 ? (
               <div className="rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                Нет задач. Добавьте новую через кнопку ниже.
+                {t(locale, 'taskEmpty')}
               </div>
             ) : (
               sortedTasks.map((task) => {
@@ -72,7 +73,7 @@ export const TaskSelect = () => {
                         : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900'
                     )}
                   >
-                    <span className="truncate">{task.title}</span>
+                    <span className="truncate">{getTaskTitle(locale, task.id, task.title)}</span>
                     {selected && <Check className="h-4 w-4 shrink-0" />}
                   </button>
                 );
@@ -89,7 +90,7 @@ export const TaskSelect = () => {
             className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
           >
             <Plus className="h-4 w-4" />
-            Создать задачу
+            {t(locale, 'createTask')}
           </button>
         </div>
       )}

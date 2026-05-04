@@ -1,6 +1,6 @@
 import { AlertCircle, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { TIMER_MODE_LABELS } from '../lib/constants';
+import { getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
 import { getDurationSeconds } from '../lib/storage';
 import { cn } from '../lib/ui';
@@ -9,6 +9,7 @@ import { useAppStore } from '../store/useAppStore';
 import { TaskSelect } from './TaskSelect';
 
 export const TimerScreen = () => {
+  const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
   const timerState = useAppStore((state) => state.timerState);
   const selectedMode = useAppStore((state) => state.selectedTimerMode);
@@ -43,7 +44,6 @@ export const TimerScreen = () => {
   const primaryDisabled = timerState.isRunning && !isViewingRunningMode;
   const primaryIsPause = isViewingRunningMode;
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
-  const showRunningHint = timerState.isRunning && selectedMode !== timerState.currentMode;
   const showCompletedSessions = displayMode === 'work';
 
   useEffect(() => {
@@ -70,8 +70,8 @@ export const TimerScreen = () => {
           type="button"
           onClick={openSettings}
           className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
-          aria-label="Настройки"
-          title="Настройки"
+          aria-label={t(locale, 'settings')}
+          title={t(locale, 'settings')}
         >
           <Settings className="h-5 w-5" />
         </button>
@@ -94,9 +94,11 @@ export const TimerScreen = () => {
                 )}
               >
                 <span className="max-w-full truncate text-[11px] font-semibold leading-none">
-                  {TIMER_MODE_LABELS[tab.mode]}
+                  {getTimerModeLabel(locale, tab.mode)}
                 </span>
-                <span className="mt-1 text-[11px] leading-none opacity-80">{tab.minutes} мин</span>
+                <span className="mt-1 text-[11px] leading-none opacity-80">
+                  {t(locale, 'timerMinutes', { count: tab.minutes })}
+                </span>
                 {running && (
                   <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500" />
                 )}
@@ -109,8 +111,8 @@ export const TimerScreen = () => {
           type="button"
           onClick={toggleTheme}
           className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
-          aria-label="Тема"
-          title="Тема"
+          aria-label={t(locale, 'theme')}
+          title={t(locale, 'theme')}
         >
           {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
@@ -149,7 +151,7 @@ export const TimerScreen = () => {
 
           <div className="absolute inset-0 px-5 text-center">
             <span className="absolute bottom-[calc(50%+2.9rem)] left-1/2 block -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              {TIMER_MODE_LABELS[displayMode]}
+              {getTimerModeLabel(locale, displayMode)}
             </span>
             <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
               {formatClock(displaySeconds)}
@@ -162,12 +164,6 @@ export const TimerScreen = () => {
           </div>
         </div>
 
-        {showRunningHint && (
-          <p className="mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
-            Сейчас активен таймер «{TIMER_MODE_LABELS[timerState.currentMode]}». Для паузы вернитесь
-            на его вкладку.
-          </p>
-        )}
       </section>
 
       <section className="space-y-3 pb-2">
@@ -182,8 +178,8 @@ export const TimerScreen = () => {
               primaryDisabled && 'cursor-not-allowed opacity-40',
               startPulse && 'soft-pulse'
             )}
-            aria-label={primaryIsPause ? 'Пауза' : 'Старт'}
-            title={primaryIsPause ? 'Пауза' : 'Старт'}
+            aria-label={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
+            title={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
           >
             {primaryIsPause ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
           </button>
@@ -195,8 +191,8 @@ export const TimerScreen = () => {
               'grid h-12 w-12 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
               'hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white'
             )}
-            aria-label="Стоп"
-            title="Стоп"
+            aria-label={t(locale, 'stop')}
+            title={t(locale, 'stop')}
           >
             <Square className="h-4 w-4 fill-current" />
           </button>
@@ -212,8 +208,8 @@ export const TimerScreen = () => {
               type="button"
               onClick={clearRuntimeError}
               className="grid h-6 w-6 shrink-0 place-items-center rounded-md transition hover:bg-rose-100 dark:hover:bg-rose-500/10"
-              aria-label="Закрыть уведомление"
-              title="Закрыть уведомление"
+              aria-label={t(locale, 'closeNotification')}
+              title={t(locale, 'closeNotification')}
             >
               <X className="h-4 w-4" />
             </button>
