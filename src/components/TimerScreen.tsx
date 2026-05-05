@@ -45,6 +45,10 @@ export const TimerScreen = () => {
   const primaryIsPause = isViewingRunningMode;
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
   const showCompletedSessions = displayMode === 'work';
+  const tomatoIconSrc =
+    typeof chrome !== 'undefined' && chrome.runtime?.getURL
+      ? chrome.runtime.getURL('icons/icon-128.png')
+      : '/icons/icon-128.png';
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) return;
@@ -153,12 +157,20 @@ export const TimerScreen = () => {
             <span className="absolute bottom-[calc(50%+2.9rem)] left-1/2 block -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               {getTimerModeLabel(locale, displayMode)}
             </span>
-            <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
+            <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(3.2rem,15vw,5rem)] font-semibold leading-none text-zinc-950 dark:text-white">
               {formatClock(displaySeconds)}
             </span>
             {showCompletedSessions && (
-              <span className="absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex min-h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-3 text-xs font-semibold text-white shadow-sm">
-                {timerState.completedSessions}
+              <span className="absolute left-1/2 top-[calc(50%+3.5rem)] inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center">
+                <img
+                  src={tomatoIconSrc}
+                  alt=""
+                  className="h-11 w-11 select-none object-contain drop-shadow-sm"
+                  draggable={false}
+                />
+                <span className="absolute inset-0 flex items-center justify-center pt-0.5 text-[11px] font-bold text-white">
+                  {timerState.completedSessions}
+                </span>
               </span>
             )}
           </div>
