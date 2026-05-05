@@ -2,6 +2,7 @@ import { Minus, Plus, Save, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SETTINGS_FIELDS } from '../lib/constants';
 import { getLanguagePreferenceLabel, getSettingLabel, t } from '../lib/i18n';
+import { areTimerDurationsLocked } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { LanguagePreference, Settings } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
@@ -10,9 +11,15 @@ export const SettingsModal = () => {
   const open = useAppStore((state) => state.settingsOpen);
   const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
+  const timerState = useAppStore((state) => state.timerState);
   const closeSettings = useAppStore((state) => state.closeSettings);
   const saveSettings = useAppStore((state) => state.saveSettings);
   const [draft, setDraft] = useState<Settings>(settings);
+  const timerDurationsLocked = areTimerDurationsLocked(settings, timerState);
+  const timerDurationsLockedMessage =
+    locale === 'ru'
+      ? 'Чтобы изменить длительность таймеров, сначала нажмите Стоп и сбросьте текущий цикл.'
+      : 'Press Stop to reset the timer before changing timer durations.';
 
   useEffect(() => {
     if (open) setDraft(settings);
@@ -24,6 +31,8 @@ export const SettingsModal = () => {
     key: (typeof SETTINGS_FIELDS)[number]['key'],
     value: number
   ) => {
+    if (key !== 'longBreakInterval' && timerDurationsLocked) return;
+
     const field = SETTINGS_FIELDS.find((item) => item.key === key);
     const min = field?.min ?? 1;
     const max = field?.max ?? 999;
@@ -53,45 +62,68 @@ export const SettingsModal = () => {
         </div>
 
         <div className="space-y-3">
-          {SETTINGS_FIELDS.map((field) => (
-            <label
-              key={field.key}
-              className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <span className="min-w-0 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                {getSettingLabel(locale, field.key)}
-              </span>
+          {SETTINGS_FIELDS.map((field) => {
+            const locked = field.key !== 'longBreakInterval' && timerDurationsLocked;
 
-              <div className="flex h-9 shrink-0 items-center rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
-                <button
-                  type="button"
-                  onClick={() => setValue(field.key, draft[field.key] - 1)}
-                  className="grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
-                  aria-label={t(locale, 'decrease')}
-                  title={t(locale, 'decrease')}
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <input
-                  type="number"
-                  min={field.min}
-                  max={field.max}
-                  value={draft[field.key]}
-                  onChange={(event) => setValue(field.key, Number(event.target.value))}
-                  className="h-9 w-16 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none dark:text-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setValue(field.key, draft[field.key] + 1)}
-                  className="grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
-                  aria-label={t(locale, 'increase')}
-                  title={t(locale, 'increase')}
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </label>
-          ))}
+            return (
+              <label
+                key={field.key}
+                className={cn(
+                  'flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900',
+                  locked && 'opacity-60'
+                )}
+              >
+                <span className="min-w-0 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  {getSettingLabel(locale, field.key)}
+                </span>
+
+                <div className="flex h-9 shrink-0 items-center rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
+                  <button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => setValue(field.key, draft[field.key] - 1)}
+                    className={cn(
+                      'grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
+                      locked && 'cursor-not-allowed opacity-50'
+                    )}
+                    aria-label={t(locale, 'decrease')}
+                    title={locked ? timerDurationsLockedMessage : t(locale, 'decrease')}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <input
+                    type="number"
+                    min={field.min}
+                    max={field.max}
+                    disabled={locked}
+                    value={draft[field.key]}
+                    onChange={(event) => setValue(field.key, Number(event.target.value))}
+                    title={locked ? timerDurationsLockedMessage : undefined}
+                    className="h-9 w-16 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none disabled:cursor-not-allowed dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => setValue(field.key, draft[field.key] + 1)}
+                    className={cn(
+                      'grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
+                      locked && 'cursor-not-allowed opacity-50'
+                    )}
+                    aria-label={t(locale, 'increase')}
+                    title={locked ? timerDurationsLockedMessage : t(locale, 'increase')}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </label>
+            );
+          })}
+
+          {timerDurationsLocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              {timerDurationsLockedMessage}
+            </div>
+          )}
 
           <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">

@@ -3,6 +3,7 @@ import { NO_TASK_ID } from '../lib/constants';
 import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
 import {
   applyThemeClass,
+  areTimerDurationsLocked,
   clampTaskTitle,
   createTask,
   defaultTimerState,
@@ -236,16 +237,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closeSettings: () => set({ settingsOpen: false }),
 
   saveSettings: async (rawSettings) => {
-    const settings = normalizeSettings(rawSettings);
+    const { settings: currentSettings, timerState } = get();
+    const normalizedSettings = normalizeSettings(rawSettings);
+    const durationsLocked = areTimerDurationsLocked(currentSettings, timerState);
+    const settings = durationsLocked
+      ? {
+          ...normalizedSettings,
+          workTime: currentSettings.workTime,
+          shortBreak: currentSettings.shortBreak,
+          longBreak: currentSettings.longBreak
+        }
+      : normalizedSettings;
     const locale = resolveLocale(settings.languagePreference);
-    const { timerState } = get();
-    const nextTimerState = timerState.isRunning
+    const nextTimerState = durationsLocked
       ? timerState
-      : {
-          ...timerState,
-          remainingSeconds: getDurationSeconds(settings, timerState.currentMode),
-          targetEndTime: null
-        };
+      : timerState.isRunning
+        ? timerState
+        : {
+            ...timerState,
+            remainingSeconds: getDurationSeconds(settings, timerState.currentMode),
+            targetEndTime: null
+          };
 
     set({
       settings,
