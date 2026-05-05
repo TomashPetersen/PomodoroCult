@@ -24,7 +24,8 @@ export default defineConfig({
       input:
         resolvedTargetBrowser === 'firefox'
           ? {
-              popup: 'index.html'
+              popup: 'index.html',
+              background: 'background-firefox.html'
             }
           : {
               popup: 'index.html',

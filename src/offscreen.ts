@@ -41,7 +41,14 @@ const completeTimer = async (): Promise<void> => {
   targetEndTime = null;
   activePayload = null;
 
-  await playCompletionChime();
+  try {
+    await playCompletionChime();
+  } catch (error) {
+    console.warn(
+      'Completion audio failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
   await runtimeSendMessage({
     type: 'TIMER_COMPLETED',
     payload: {

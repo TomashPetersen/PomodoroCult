@@ -1,5 +1,10 @@
 import { NO_TASK_ID } from './lib/constants';
-import { playCompletionChime } from './lib/completionChime';
+import { getTimerModeLabel, resolveLocale, t } from './lib/i18n';
+import {
+  getLastCompletionChimeError,
+  playCompletionChime,
+  primeCompletionAudio
+} from './lib/completionChime';
 import {
   addSessionStatistics,
   ensureNoTask,
@@ -9,23 +14,128 @@ import {
   setLocal,
   sortTasks
 } from './lib/storage';
-import { RuntimeMessage, TimerMode, TimerState } from './lib/types';
+import { Locale, RuntimeMessage, TimerMode, TimerState } from './lib/types';
 
-let intervalId: number | null = null;
-let tickInProgress = false;
+const COMPLETION_ALARM = 'pomodoro-cult-completion';
 
-const clearTimer = (): void => {
-  if (intervalId !== null) {
-    window.clearInterval(intervalId);
-    intervalId = null;
+(
+  globalThis as typeof globalThis & {
+    __pomodoroCultPrimeAudio?: () => Promise<void>;
+    __pomodoroCultGetLastAudioError?: () => string | null;
   }
+).__pomodoroCultPrimeAudio = primeCompletionAudio;
+
+(
+  globalThis as typeof globalThis & {
+    __pomodoroCultPrimeAudio?: () => Promise<void>;
+    __pomodoroCultGetLastAudioError?: () => string | null;
+  }
+).__pomodoroCultGetLastAudioError = getLastCompletionChimeError;
+
+const getNotificationsApi = (): typeof chrome.notifications | null => {
+  const browserApi = (
+    globalThis as typeof globalThis & {
+      browser?: { notifications?: typeof chrome.notifications };
+    }
+  ).browser;
+
+  if (browserApi?.notifications) {
+    return browserApi.notifications;
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.notifications) {
+    return chrome.notifications;
+  }
+
+  return null;
 };
 
-const startTicking = (): void => {
-  clearTimer();
-  intervalId = window.setInterval(() => {
-    void tick();
-  }, 1000);
+const getAlarmsApi = (): typeof chrome.alarms | null => {
+  const browserApi = (
+    globalThis as typeof globalThis & {
+      browser?: { alarms?: typeof chrome.alarms };
+    }
+  ).browser;
+
+  if (browserApi?.alarms) {
+    return browserApi.alarms;
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.alarms) {
+    return chrome.alarms;
+  }
+
+  return null;
+};
+
+const createAlarm = async (targetEndTime: number): Promise<void> => {
+  const alarms = getAlarmsApi();
+  if (!alarms) {
+    console.warn('Firefox alarms API is unavailable.');
+    return;
+  }
+
+  alarms.create(COMPLETION_ALARM, { when: targetEndTime });
+};
+
+const clearAlarm = async (): Promise<void> => {
+  const alarms = getAlarmsApi();
+  if (!alarms) return;
+  await alarms.clear(COMPLETION_ALARM);
+};
+
+const getNotificationCopy = (
+  locale: Locale,
+  completedMode: TimerMode,
+  nextMode: TimerMode
+): { title: string; message: string } => {
+  const title =
+    completedMode === 'work'
+      ? t(locale, 'notificationWorkDone')
+      : completedMode === 'shortBreak'
+        ? t(locale, 'notificationBreakDone')
+        : t(locale, 'notificationRestDone');
+
+  const message = t(locale, 'notificationNextMode', {
+    mode: getTimerModeLabel(locale, nextMode)
+  });
+
+  return { title, message };
+};
+
+const showCompletionNotification = async (
+  completedMode: TimerMode,
+  nextMode: TimerMode
+): Promise<void> => {
+  const notifications = getNotificationsApi();
+  if (!notifications) {
+    console.warn('Firefox completion fallback notification is unavailable.');
+    return;
+  }
+
+  const { settings } = await readStoredData();
+  const locale = resolveLocale(settings.languagePreference);
+  const { title, message } = getNotificationCopy(locale, completedMode, nextMode);
+
+  await new Promise<void>((resolve) => {
+    notifications.create(
+      `pomodoro-cult-${Date.now()}`,
+      {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+        title,
+        message
+      },
+      () => {
+        void chrome.runtime.lastError;
+        console.warn(
+          'Firefox completion notification shown.',
+          JSON.stringify({ completedMode, nextMode })
+        );
+        resolve();
+      }
+    );
+  });
 };
 
 const buildRunningState = (
@@ -48,8 +158,8 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
   const { settings } = data;
   let { tasks, timerState } = data;
 
-  if (timerState.isRunning) {
-    startTicking();
+  if (timerState.isRunning && timerState.targetEndTime) {
+    await createAlarm(timerState.targetEndTime);
     return timerState;
   }
 
@@ -93,7 +203,7 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
     timerState: nextState
   });
 
-  startTicking();
+  await createAlarm(targetEndTime);
   return nextState;
 };
 
@@ -114,7 +224,7 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     targetEndTime: null
   };
 
-  clearTimer();
+  await clearAlarm();
   await setLocal({ timerState: nextState });
   return nextState;
 };
@@ -130,7 +240,7 @@ const handleResetTimer = async (): Promise<TimerState> => {
     completedSessions: 0
   };
 
-  clearTimer();
+  await clearAlarm();
   await setLocal({ timerState: nextState });
   return nextState;
 };
@@ -193,59 +303,53 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
   return nextState;
 };
 
-const tick = async (): Promise<void> => {
-  if (tickInProgress) return;
-  tickInProgress = true;
+const completeExpiredTimer = async (): Promise<void> => {
+  const { timerState } = await readStoredData();
+
+  if (!timerState.isRunning || !timerState.targetEndTime) {
+    await clearAlarm();
+    return;
+  }
+
+  if (timerState.targetEndTime > Date.now()) {
+    await createAlarm(timerState.targetEndTime);
+    return;
+  }
+
+  await clearAlarm();
+  const completedMode = timerState.currentMode;
+  const completedState = await handleTimerCompleted({
+    ...timerState,
+    remainingSeconds: 0
+  });
 
   try {
-    const { timerState } = await readStoredData();
-
-    if (!timerState.isRunning || !timerState.targetEndTime) {
-      clearTimer();
-      return;
-    }
-
-    const remainingSeconds = Math.max(0, Math.ceil((timerState.targetEndTime - Date.now()) / 1000));
-
-    if (remainingSeconds > 0) {
-      await setLocal({
-        timerState: {
-          ...timerState,
-          remainingSeconds
-        }
-      });
-      return;
-    }
-
-    clearTimer();
-    const completedState = await handleTimerCompleted({
-      ...timerState,
-      remainingSeconds: 0
-    });
     await playCompletionChime();
-
-    if (completedState.isRunning && completedState.targetEndTime) {
-      startTicking();
-    }
-  } finally {
-    tickInProgress = false;
+  } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.message
+        : getLastCompletionChimeError() ?? String(error);
+    console.warn('Firefox completion audio failed:', reason);
   }
+
+  await showCompletionNotification(completedMode, completedState.currentMode);
 };
 
 const resumeRunningTimer = async (): Promise<void> => {
   const { timerState } = await initializeStorage();
 
   if (!timerState.isRunning || !timerState.targetEndTime) {
-    clearTimer();
+    await clearAlarm();
     return;
   }
 
-  await tick();
-
-  const { timerState: refreshedState } = await readStoredData();
-  if (refreshedState.isRunning && refreshedState.targetEndTime) {
-    startTicking();
+  if (timerState.targetEndTime <= Date.now()) {
+    await completeExpiredTimer();
+    return;
   }
+
+  await createAlarm(timerState.targetEndTime);
 };
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -254,6 +358,12 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   void resumeRunningTimer();
+});
+
+const alarmsApi = getAlarmsApi();
+alarmsApi?.onAlarm.addListener((alarm) => {
+  if (alarm.name !== COMPLETION_ALARM) return;
+  void completeExpiredTimer();
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {

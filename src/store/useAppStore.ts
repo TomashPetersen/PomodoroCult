@@ -104,6 +104,59 @@ const sendRuntimeMessage = (message: RuntimeMessage): Promise<RuntimeResponse | 
     });
   });
 
+type BackgroundWindow = Window & {
+  __pomodoroCultPrimeAudio?: () => Promise<void>;
+};
+
+type RuntimeWithBackgroundPage = {
+  lastError?: { message?: string };
+  getBackgroundPage?: ((callback: (page: BackgroundWindow | null) => void) => void) | (() => Promise<BackgroundWindow | null>);
+};
+
+const getExtensionRuntime = (): RuntimeWithBackgroundPage | null => {
+  const browserRuntime = (
+    globalThis as typeof globalThis & {
+      browser?: {
+        runtime?: RuntimeWithBackgroundPage;
+      };
+    }
+  ).browser?.runtime;
+
+  return browserRuntime ?? chrome.runtime ?? null;
+};
+
+const getBackgroundPage = async (): Promise<BackgroundWindow | null> => {
+  const runtime = getExtensionRuntime();
+  const getBackgroundPageMethod = runtime?.getBackgroundPage;
+
+  if (!getBackgroundPageMethod) {
+    return null;
+  }
+
+  if (getBackgroundPageMethod.length === 0) {
+    return (await (
+      getBackgroundPageMethod as () => Promise<BackgroundWindow | null>
+    )()) ?? null;
+  }
+
+  return await new Promise<BackgroundWindow | null>((resolve) => {
+    (
+      getBackgroundPageMethod as (callback: (page: BackgroundWindow | null) => void) => void
+    )((page) => {
+      void runtime?.lastError;
+      resolve(page ?? null);
+    });
+  });
+};
+
+const primeFirefoxBackgroundAudio = async (): Promise<void> => {
+  const backgroundPage = await getBackgroundPage();
+
+  if (backgroundPage?.__pomodoroCultPrimeAudio) {
+    await backgroundPage.__pomodoroCultPrimeAudio();
+  }
+};
+
 const initialData: StoredData = {
   settings: DEFAULT_SETTINGS,
   tasks: [],
@@ -277,6 +330,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ runtimeError: null, pulseStartMode: null });
 
     try {
+      await primeFirefoxBackgroundAudio();
+
       const response = await sendRuntimeMessage({
         type: 'POPUP_START_TIMER',
         payload: { mode: selectedTimerMode }

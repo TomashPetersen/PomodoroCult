@@ -25,10 +25,9 @@ const baseManifest = {
 const manifest = {
   ...baseManifest,
   background: {
-    scripts: ['src/background-firefox.ts'],
-    type: 'module'
+    page: 'background-firefox.html'
   },
-  permissions: ['storage'],
+  permissions: ['storage', 'notifications', 'alarms'],
   browser_specific_settings: {
     gecko: {
       id: 'pomodoro-cult@d-g-volkovbz',

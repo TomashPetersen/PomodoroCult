@@ -1,8 +1,22 @@
 # Pomodoro Cult
 
-Pomodoro Cult - это браузерное расширение с таймером фокуса, задачами и статистикой.
+Pomodoro Cult is a focus timer browser extension with tasks, session statistics, and background countdown support.
 
-Проект использует:
+The project targets two browser builds:
+
+- Chrome build in `dist/`
+- Firefox build in `dist-firefox/`
+
+## Features
+
+- Work, short break, and long rest timers
+- Automatic mode switching after a completed work session
+- Task selection for work sessions
+- Local session statistics
+- Background countdown after the popup closes
+- Russian and English UI
+
+## Stack
 
 - React 18
 - TypeScript
@@ -10,102 +24,89 @@ Pomodoro Cult - это браузерное расширение с таймер
 - Zustand
 - Tailwind CSS
 
-## Что умеет расширение
+## Development
 
-- запускать рабочий таймер, короткий перерыв и отдых;
-- автоматически переключать режим после завершения рабочего цикла;
-- привязывать сессию к выбранной задаче;
-- сохранять состояние таймера, задачи, настройки и статистику;
-- показывать историю сессий и суммарное время;
-- работать на русском и английском языках.
-
-## Сборка
-
-Рабочая директория:
+Working directory:
 
 `D:\Projects\MyProjects\PomodoroCult`
 
-### Установка зависимостей
+Install dependencies:
 
 ```powershell
 npm.cmd install
 ```
 
-### Проверка TypeScript
+Type-check:
 
 ```powershell
 npx.cmd tsc --noEmit
 ```
 
-### Chrome build
+Build Chrome package:
 
 ```powershell
 npm.cmd run build
 ```
 
-Готовый результат будет в папке `dist/`.
-
-### Firefox build
+Build Firefox package:
 
 ```powershell
 npm.cmd run build:firefox
 ```
 
-Готовый результат будет в папке `dist-firefox/`.
+## Browser Architecture
 
-## Архитектура сборок
+Chrome and Firefox use different background runtimes:
 
-Chrome и Firefox используют разный фоновый runtime:
+- Chrome uses `background.service_worker` with `offscreen`
+- Firefox uses `background.scripts`
 
-- Chrome: `background.service_worker` + `offscreen`
-- Firefox: `background.scripts`
+The popup UI, storage model, tasks, settings, and statistics behavior remain shared.
 
-UI, store, задачи, настройки и статистика остаются общими.
+## Key Files
 
-## Структура проекта
-
-- `src/components/` - экраны и UI-компоненты
-- `src/store/useAppStore.ts` - основное состояние popup
-- `src/lib/storage.ts` - работа с сохранением данных и нормализацией
-- `src/background.ts` - Chrome background/service worker
-- `src/offscreen.ts` - Chrome offscreen runtime
-- `src/background-firefox.ts` - Firefox background runtime
+- `src/components/` - popup screens and UI components
+- `src/store/useAppStore.ts` - shared popup state
+- `src/lib/storage.ts` - storage, normalization, and timer helpers
+- `src/background.ts` - Chrome runtime coordinator
+- `src/offscreen.ts` - Chrome background countdown runtime
+- `src/background-firefox.ts` - Firefox background countdown runtime
 - `manifest.json` - Chrome manifest
 - `manifest.firefox.ts` - Firefox manifest
 
-## Локальная загрузка в браузер
+## Local Loading
 
 ### Chrome
 
-1. Откройте `chrome://extensions/`
-2. Включите `Developer mode`
-3. Нажмите `Load unpacked`
-4. Выберите папку `dist`
+1. Open `chrome://extensions/`
+2. Enable `Developer mode`
+3. Click `Load unpacked`
+4. Select the `dist` directory
 
 ### Firefox
 
-1. Откройте `about:debugging#/runtime/this-firefox`
-2. Нажмите `Загрузить временное дополнение`
-3. Выберите файл `dist-firefox/manifest.json`
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click `Load Temporary Add-on`
+3. Select `dist-firefox/manifest.json`
 
-## Подготовка Firefox-пакета
+## Publishing Notes
 
-Для публикации в AMO соберите Firefox-версию, затем упакуйте содержимое `dist-firefox/` в `.xpi`.
+- Firefox store materials live in `docs/amo/`
+- Privacy policy page lives in `docs/privacy/index.md`
+- Firefox build and packaging notes live in `FIREFOX.md`
 
-Подробности вынесены в [FIREFOX.md](D:/Projects/MyProjects/PomodoroCult/FIREFOX.md).
+## Release Checks
 
-## Проверки перед релизом
-
-Минимальный набор:
+Minimum checks before release:
 
 - `npx.cmd tsc --noEmit`
 - `npm.cmd run build`
 - `npm.cmd run build:firefox`
 
-И вручную:
+Manual checks:
 
-- старт, пауза и стоп таймера;
-- завершение рабочего цикла и запись статистики;
-- завершение перерыва и возврат в рабочий режим;
-- выбор задачи;
-- переключение языка и настроек.
+- start, pause, and stop flow
+- work session completion and statistics write
+- break completion and return to work
+- task selection flow
+- language switching

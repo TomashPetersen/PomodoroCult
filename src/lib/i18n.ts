@@ -45,11 +45,11 @@ const messages = {
     chooseDateRange: 'Choose date range',
     startDate: 'Start date',
     endDate: 'End date',
-    currentSelection: 'Current selection: {start} — {end}',
+    currentSelection: 'Current selection: {start} - {end}',
     apply: 'Apply',
     confirmStop: 'Confirm stop',
     stopDescription:
-      'The timer will stop, completed cycles will reset, and the screen will return to the “Work” tab. Saved statistics will stay intact.',
+      'The timer will stop, completed cycles will reset, and the screen will return to the "Work" tab. Saved statistics will stay intact.',
     decrease: 'Decrease',
     increase: 'Increase',
     settingWorkTime: 'Work time',
@@ -68,7 +68,12 @@ const messages = {
     errorLoadData: 'Could not load app data.',
     errorStartTimer: 'Could not start the timer.',
     errorPauseTimer: 'Could not pause the timer.',
-    errorStopTimer: 'Could not stop the timer.'
+    errorStopTimer: 'Could not stop the timer.',
+    notificationWorkDone: 'Work finished',
+    notificationBreakDone: 'Break finished',
+    notificationRestDone: 'Rest finished',
+    notificationNextMode: 'Next: {mode}',
+    notificationAudioBlocked: 'Sound was blocked by Firefox background autoplay policy.'
   },
   ru: {
     appName: 'Помодоро Культ',
@@ -113,11 +118,11 @@ const messages = {
     chooseDateRange: 'Выберите диапазон дат',
     startDate: 'Дата начала',
     endDate: 'Дата окончания',
-    currentSelection: 'Текущий выбор: {start} — {end}',
+    currentSelection: 'Текущий выбор: {start} - {end}',
     apply: 'Применить',
     confirmStop: 'Подтвердите стоп',
     stopDescription:
-      'Таймер будет остановлен, счетчик циклов обнулится, а экран вернется к вкладке «Работа». Уже сохраненная статистика останется.',
+      'Таймер будет остановлен, счетчик циклов обнулится, а экран вернется к вкладке "Работа". Уже сохраненная статистика останется.',
     decrease: 'Уменьшить',
     increase: 'Увеличить',
     settingWorkTime: 'Рабочее время',
@@ -136,7 +141,12 @@ const messages = {
     errorLoadData: 'Не удалось загрузить данные приложения.',
     errorStartTimer: 'Не удалось запустить таймер.',
     errorPauseTimer: 'Не удалось поставить таймер на паузу.',
-    errorStopTimer: 'Не удалось остановить таймер.'
+    errorStopTimer: 'Не удалось остановить таймер.',
+    notificationWorkDone: 'Работа завершена',
+    notificationBreakDone: 'Перерыв завершен',
+    notificationRestDone: 'Отдых завершен',
+    notificationNextMode: 'Далее: {mode}',
+    notificationAudioBlocked: 'Firefox заблокировал фоновое воспроизведение звука.'
   }
 } as const;
 

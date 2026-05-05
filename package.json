@@ -2,6 +2,7 @@
   "name": "pomodoro-cult",
   "private": true,
   "version": "1.0.0",
+  "license": "MPL-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -17,6 +18,14 @@
     "react-dom": "^18.3.1",
     "zustand": "^5.0.2"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TomashPetersen/PomodoroCult.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TomashPetersen/PomodoroCult/issues"
+  },
+  "homepage": "https://github.com/TomashPetersen/PomodoroCult",
   "devDependencies": {
     "@types/chrome": "^0.0.287",
     "@types/react": "^18.3.17",
