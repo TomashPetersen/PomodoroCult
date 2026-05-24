@@ -29,6 +29,7 @@ export const TimerScreen = () => {
   const pauseTimer = useAppStore((state) => state.pauseTimer);
   const openResetConfirm = useAppStore((state) => state.openResetConfirm);
   const [now, setNow] = useState(() => Date.now());
+  const [primaryActionPending, setPrimaryActionPending] = useState<'start' | 'pause' | null>(null);
 
   const displayMode = selectedMode;
   const modeDuration = getDurationSeconds(settings, displayMode);
@@ -48,8 +49,10 @@ export const TimerScreen = () => {
   const dashOffset = circumference * (1 - progress);
   const isViewingRunningMode = timerState.isRunning && selectedMode === timerState.currentMode;
   const canStartSelectedMode = canStartTimerMode(settings, timerState, selectedMode);
-  const primaryDisabled = timerState.isRunning ? !isViewingRunningMode : !canStartSelectedMode;
-  const primaryIsPause = isViewingRunningMode;
+  const primaryBlockedByState = timerState.isRunning ? !isViewingRunningMode : !canStartSelectedMode;
+  const primaryIsPause = primaryActionPending === 'start' || (primaryActionPending !== 'pause' && isViewingRunningMode);
+  const primaryDisabled = primaryBlockedByState;
+  const primaryBusy = primaryActionPending !== null;
   const stopDisabled = !hasStartedTimerCycle(settings, timerState);
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
   const showCompletedSessions = selectedMode === 'work';
@@ -181,17 +184,36 @@ export const TimerScreen = () => {
             disabled={primaryDisabled}
             onClick={
               primaryIsPause
-                ? () => void pauseTimer()
+                ? async () => {
+                    if (primaryBusy) {
+                      return;
+                    }
+                    setPrimaryActionPending('pause');
+                    try {
+                      await pauseTimer();
+                    } finally {
+                      setPrimaryActionPending(null);
+                    }
+                  }
                 : async () => {
-                    const startedAt = Date.now();
-                    setNow(startedAt);
-                    await startTimer(startedAt);
+                    if (primaryBusy) {
+                      return;
+                    }
+                    setPrimaryActionPending('start');
+                    try {
+                      const startedAt = Date.now();
+                      setNow(startedAt);
+                      await startTimer(startedAt);
+                    } finally {
+                      setPrimaryActionPending(null);
+                    }
                   }
             }
             className={cn(
               'grid h-12 w-12 place-items-center rounded-full bg-zinc-950 text-white shadow-sm transition',
               'hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200',
               primaryDisabled && 'cursor-not-allowed opacity-40',
+              primaryBusy && 'pointer-events-none',
               startPulse && 'soft-pulse'
             )}
             aria-label={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
