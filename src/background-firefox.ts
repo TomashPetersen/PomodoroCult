@@ -1,6 +1,7 @@
 import { NO_TASK_ID } from './lib/constants';
 import { getTimerModeLabel, resolveLocale, t } from './lib/i18n';
 import {
+  COMPLETION_CHIME_DURATION_MS,
   getLastCompletionChimeError,
   playCompletionChime,
   primeCompletionAudio
@@ -9,6 +10,9 @@ import {
   addSessionStatistics,
   ensureNoTask,
   getDurationSeconds,
+  getRunningDisplaySeconds,
+  getStartDurationSeconds,
+  getStartTargetEndTime,
   initializeStorage,
   readStoredData,
   setLocal,
@@ -17,6 +21,10 @@ import {
 import { Locale, RuntimeMessage, TimerMode, TimerState } from './lib/types';
 
 const COMPLETION_ALARM = 'pomodoro-cult-completion';
+const COMPLETION_NOTIFICATION_DELAY_MS = 500;
+
+let completionInFlight: Promise<void> | null = null;
+let lastCompletedKey: string | null = null;
 
 (
   globalThis as typeof globalThis & {
@@ -81,8 +89,19 @@ const createAlarm = async (targetEndTime: number): Promise<void> => {
 const clearAlarm = async (): Promise<void> => {
   const alarms = getAlarmsApi();
   if (!alarms) return;
-  await alarms.clear(COMPLETION_ALARM);
+
+  await new Promise<void>((resolve) => {
+    alarms.clear(COMPLETION_ALARM, () => {
+      void chrome.runtime.lastError;
+      resolve();
+    });
+  });
 };
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 
 const getNotificationCopy = (
   locale: Locale,
@@ -122,7 +141,7 @@ const showCompletionNotification = async (
       `pomodoro-cult-${Date.now()}`,
       {
         type: 'basic',
-        iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+        iconUrl: chrome.runtime.getURL('icons/firefox-icon-128.png'),
         title,
         message
       },
@@ -153,7 +172,7 @@ const buildRunningState = (
   activeTaskId
 });
 
-const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
+const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<TimerState> => {
   const data = await initializeStorage();
   const { settings } = data;
   let { tasks, timerState } = data;
@@ -185,11 +204,8 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
     );
   }
 
-  const durationSeconds =
-    timerState.currentMode === mode && timerState.remainingSeconds > 0
-      ? timerState.remainingSeconds
-      : getDurationSeconds(settings, mode);
-  const targetEndTime = Date.now() + durationSeconds * 1000;
+  const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
+  const targetEndTime = getStartTargetEndTime(settings, timerState, mode, startedAt);
   const nextState = buildRunningState(
     timerState,
     mode,
@@ -215,7 +231,7 @@ const handlePauseTimer = async (): Promise<TimerState> => {
   }
 
   const remainingSeconds = timerState.targetEndTime
-    ? Math.max(0, Math.ceil((timerState.targetEndTime - Date.now()) / 1000))
+    ? getRunningDisplaySeconds(timerState.targetEndTime)
     : timerState.remainingSeconds;
   const nextState: TimerState = {
     ...timerState,
@@ -224,8 +240,8 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     targetEndTime: null
   };
 
-  await clearAlarm();
   await setLocal({ timerState: nextState });
+  await clearAlarm();
   return nextState;
 };
 
@@ -240,8 +256,8 @@ const handleResetTimer = async (): Promise<TimerState> => {
     completedSessions: 0
   };
 
-  await clearAlarm();
   await setLocal({ timerState: nextState });
+  await clearAlarm();
   return nextState;
 };
 
@@ -315,25 +331,47 @@ const completeExpiredTimer = async (): Promise<void> => {
     await createAlarm(timerState.targetEndTime);
     return;
   }
+  const completionKey = `${timerState.currentMode}:${timerState.targetEndTime}:${timerState.completedSessions}`;
 
-  await clearAlarm();
-  const completedMode = timerState.currentMode;
-  const completedState = await handleTimerCompleted({
-    ...timerState,
-    remainingSeconds: 0
-  });
-
-  try {
-    await playCompletionChime();
-  } catch (error) {
-    const reason =
-      error instanceof Error
-        ? error.message
-        : getLastCompletionChimeError() ?? String(error);
-    console.warn('Firefox completion audio failed:', reason);
+  if (lastCompletedKey === completionKey) {
+    await clearAlarm();
+    return;
   }
 
-  await showCompletionNotification(completedMode, completedState.currentMode);
+  if (completionInFlight) {
+    await completionInFlight;
+    return;
+  }
+
+  completionInFlight = (async () => {
+    await clearAlarm();
+    const completedMode = timerState.currentMode;
+    const completedState = await handleTimerCompleted({
+      ...timerState,
+      remainingSeconds: 0
+    });
+
+    try {
+      await playCompletionChime();
+    } catch (error) {
+      const reason =
+        error instanceof Error
+          ? error.message
+          : getLastCompletionChimeError() ?? String(error);
+      console.warn('Firefox completion audio failed:', reason);
+      await delay(COMPLETION_CHIME_DURATION_MS);
+    }
+
+    await delay(COMPLETION_NOTIFICATION_DELAY_MS);
+    await showCompletionNotification(completedMode, completedState.currentMode);
+    lastCompletedKey = completionKey;
+  })();
+
+  try {
+    await completionInFlight;
+  } finally {
+    completionInFlight = null;
+  }
 };
 
 const resumeRunningTimer = async (): Promise<void> => {
@@ -379,7 +417,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':
-        sendResponse({ ok: true, timerState: await handleStartTimer(message.payload.mode) });
+        sendResponse({
+          ok: true,
+          timerState: await handleStartTimer(message.payload.mode, message.payload.startedAt)
+        });
         return;
       case 'POPUP_PAUSE_TIMER':
         sendResponse({ ok: true, timerState: await handlePauseTimer() });

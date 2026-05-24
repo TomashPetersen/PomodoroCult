@@ -40,8 +40,17 @@ Compress-Archive -Path dist-firefox\* -DestinationPath artifacts\pomodoro-cult-f
 Move-Item -LiteralPath artifacts\pomodoro-cult-firefox.zip -Destination artifacts\pomodoro-cult-firefox.xpi -Force
 ```
 
+## Source package packaging
+
+```powershell
+$include = Get-ChildItem -Force | Where-Object { $_.Name -notin @('.git','node_modules','dist','dist-firefox','artifacts') }
+Compress-Archive -Path $include.FullName -DestinationPath artifacts\pomodoro-cult-firefox-source.zip -Force
+```
+
 ## Notes for review
 
 - the Firefox build has its own manifest in `manifest.firefox.ts`
 - Firefox uses `src/background-firefox.ts`
 - Chrome-only `offscreen` behavior remains isolated in the Chrome build
+- Firefox-specific branding files live in `public/icons/firefox-icon-*.png`
+- the Firefox icon set is generated from `assets/branding/source-logo.png`

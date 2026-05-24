@@ -1,4 +1,9 @@
-import { getDurationSeconds, readStoredData, setLocal } from './lib/storage';
+import {
+  getDurationSeconds,
+  getRunningDisplaySeconds,
+  readStoredData,
+  setLocal
+} from './lib/storage';
 import { playCompletionChime } from './lib/completionChime';
 import { RuntimeMessage, StartTimerPayload, TimerMode, TimerState } from './lib/types';
 
@@ -65,10 +70,7 @@ const tick = async (): Promise<void> => {
   tickInProgress = true;
 
   try {
-    const remainingSeconds = Math.max(
-      0,
-      Math.ceil((targetEndTime - Date.now()) / 1000)
-    );
+    const remainingSeconds = getRunningDisplaySeconds(targetEndTime);
 
     await writeTimerState({
       isRunning: true,
@@ -90,7 +92,7 @@ const startTimer = async (payload: StartTimerPayload): Promise<void> => {
   clearTimer();
 
   activePayload = payload;
-  targetEndTime = Date.now() + payload.durationSeconds * 1000;
+  targetEndTime = payload.targetEndTime;
 
   await writeTimerState({
     isRunning: true,
@@ -108,7 +110,7 @@ const startTimer = async (payload: StartTimerPayload): Promise<void> => {
 
 const pauseTimer = async (): Promise<void> => {
   const remainingSeconds = targetEndTime
-    ? Math.max(0, Math.ceil((targetEndTime - Date.now()) / 1000))
+    ? getRunningDisplaySeconds(targetEndTime)
     : undefined;
 
   clearTimer();
@@ -138,6 +140,7 @@ const resumeTimer = async (): Promise<void> => {
   activePayload = {
     mode: timerState.currentMode,
     durationSeconds: timerState.remainingSeconds,
+    targetEndTime: timerState.targetEndTime,
     activeTaskId: timerState.activeTaskId,
     statSeconds: getDurationSeconds(settings, timerState.currentMode)
   };

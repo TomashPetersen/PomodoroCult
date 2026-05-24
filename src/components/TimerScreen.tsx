@@ -2,7 +2,12 @@ import { AlertCircle, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide
 import { useEffect, useState } from 'react';
 import { getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
-import { getDurationSeconds } from '../lib/storage';
+import {
+  canStartTimerMode,
+  getDurationSeconds,
+  getRunningDisplaySeconds,
+  hasStartedTimerCycle
+} from '../lib/storage';
 import { cn } from '../lib/ui';
 import { TimerMode } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
@@ -24,59 +29,43 @@ export const TimerScreen = () => {
   const pauseTimer = useAppStore((state) => state.pauseTimer);
   const openResetConfirm = useAppStore((state) => state.openResetConfirm);
   const [now, setNow] = useState(() => Date.now());
-  const [startPendingMode, setStartPendingMode] = useState<TimerMode | null>(null);
-  const [syncedTargetEndTime, setSyncedTargetEndTime] = useState<number | null>(null);
 
-  const displayMode = timerState.isRunning ? timerState.currentMode : selectedMode;
+  const displayMode = selectedMode;
   const modeDuration = getDurationSeconds(settings, displayMode);
-  const startSyncPending =
-    startPendingMode === selectedMode &&
-    !timerState.isRunning &&
-    (!timerState.targetEndTime || syncedTargetEndTime !== timerState.targetEndTime);
-  const liveRemainingSeconds =
+  const runningDisplaySeconds =
     timerState.isRunning && timerState.targetEndTime
-      ? syncedTargetEndTime === timerState.targetEndTime
-        ? Math.max(0, Math.ceil((timerState.targetEndTime - now) / 1000))
-        : timerState.remainingSeconds
+      ? getRunningDisplaySeconds(timerState.targetEndTime, now)
       : timerState.remainingSeconds;
-  const displaySeconds = startSyncPending
-    ? getDurationSeconds(settings, selectedMode)
-    : timerState.isRunning
-      ? liveRemainingSeconds
-      : selectedMode === timerState.currentMode
-        ? timerState.remainingSeconds
-        : getDurationSeconds(settings, selectedMode);
+  const displaySeconds =
+    timerState.isRunning && selectedMode === timerState.currentMode
+      ? runningDisplaySeconds
+    : selectedMode === timerState.currentMode
+      ? timerState.remainingSeconds
+      : getDurationSeconds(settings, selectedMode);
   const progress = Math.max(0, Math.min(1, displaySeconds / Math.max(1, modeDuration)));
   const radius = 112;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - progress);
   const isViewingRunningMode = timerState.isRunning && selectedMode === timerState.currentMode;
-  const primaryDisabled = timerState.isRunning && !isViewingRunningMode;
+  const canStartSelectedMode = canStartTimerMode(settings, timerState, selectedMode);
+  const primaryDisabled = timerState.isRunning ? !isViewingRunningMode : !canStartSelectedMode;
   const primaryIsPause = isViewingRunningMode;
+  const stopDisabled = !hasStartedTimerCycle(settings, timerState);
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
-  const showCompletedSessions = displayMode === 'work';
+  const showCompletedSessions = selectedMode === 'work';
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) {
-      setSyncedTargetEndTime(null);
       return;
     }
 
     setNow(Date.now());
-    setSyncedTargetEndTime(timerState.targetEndTime);
     const intervalId = window.setInterval(() => {
       setNow(Date.now());
-    }, 1000);
+    }, 250);
 
     return () => window.clearInterval(intervalId);
   }, [timerState.isRunning, timerState.targetEndTime]);
-
-  useEffect(() => {
-    if (timerState.isRunning || runtimeError) {
-      setStartPendingMode(null);
-    }
-  }, [runtimeError, timerState.isRunning]);
-
   const tabs: Array<{ mode: TimerMode; minutes: number }> = [
     { mode: 'work', minutes: settings.workTime },
     { mode: 'shortBreak', minutes: settings.shortBreak },
@@ -194,14 +183,9 @@ export const TimerScreen = () => {
               primaryIsPause
                 ? () => void pauseTimer()
                 : async () => {
-                    setStartPendingMode(selectedMode);
-                    try {
-                      await startTimer();
-                    } finally {
-                      window.setTimeout(() => {
-                        setStartPendingMode(null);
-                      }, 250);
-                    }
+                    const startedAt = Date.now();
+                    setNow(startedAt);
+                    await startTimer(startedAt);
                   }
             }
             className={cn(
@@ -218,10 +202,12 @@ export const TimerScreen = () => {
 
           <button
             type="button"
+            disabled={stopDisabled}
             onClick={openResetConfirm}
             className={cn(
               'grid h-12 w-12 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
-              'hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white'
+              'hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white',
+              stopDisabled && 'cursor-not-allowed opacity-40'
             )}
             aria-label={t(locale, 'stop')}
             title={t(locale, 'stop')}

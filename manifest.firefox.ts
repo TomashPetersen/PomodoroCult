@@ -8,17 +8,17 @@ const baseManifest = {
     default_title: '__MSG_appName__',
     default_popup: 'index.html',
     default_icon: {
-      '16': 'icons/icon-16.png',
-      '32': 'icons/icon-32.png',
-      '48': 'icons/icon-48.png',
-      '128': 'icons/icon-128.png'
+      '16': 'icons/firefox-icon-16.png',
+      '32': 'icons/firefox-icon-32.png',
+      '48': 'icons/firefox-icon-48.png',
+      '128': 'icons/firefox-icon-128.png'
     }
   },
   icons: {
-    '16': 'icons/icon-16.png',
-    '32': 'icons/icon-32.png',
-    '48': 'icons/icon-48.png',
-    '128': 'icons/icon-128.png'
+    '16': 'icons/firefox-icon-16.png',
+    '32': 'icons/firefox-icon-32.png',
+    '48': 'icons/firefox-icon-48.png',
+    '128': 'icons/firefox-icon-128.png'
   }
 } as const;
 

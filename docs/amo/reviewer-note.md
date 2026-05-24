@@ -14,6 +14,8 @@ Firefox-specific runtime notes:
 Required permission:
 
 - `storage` - stores timer state, settings, tasks, theme, language preference, and local statistics between sessions
+- `notifications` - shows a Firefox system notification when a timer completes
+- `alarms` - schedules reliable timer completion handling when the popup is closed or the background runtime is idle
 
 Data handling:
 

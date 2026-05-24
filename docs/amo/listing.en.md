@@ -78,6 +78,8 @@ Mozilla Public License 2.0
 
 Pomodoro Cult does not collect analytics, account data, or browsing history.
 
-Required permission:
+Firefox permissions used:
 
 - `storage` - saves timer state, settings, tasks, language preference, theme, and local statistics between sessions
+- `notifications` - shows a system notification when a timer completes in Firefox
+- `alarms` - wakes the Firefox background runtime at the timer end time so completion handling stays reliable after the popup closes

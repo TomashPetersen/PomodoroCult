@@ -4,6 +4,7 @@ import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
 import {
   applyThemeClass,
   areTimerDurationsLocked,
+  canStartTimerMode,
   clampTaskTitle,
   createTask,
   defaultTimerState,
@@ -11,6 +12,9 @@ import {
   getDurationSeconds,
   getLocalDateKey,
   getPresetStatsRange,
+  getRunningDisplaySeconds,
+  getStartDurationSeconds,
+  getStartTargetEndTime,
   initializeStorage,
   isTimerTaskLocked,
   normalizeSettings,
@@ -65,7 +69,7 @@ interface AppStore extends StoredData {
   openSettings: () => void;
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
-  startTimer: () => Promise<void>;
+  startTimer: (startedAt?: number) => Promise<void>;
   pauseTimer: () => Promise<void>;
   openResetConfirm: () => void;
   closeResetConfirm: () => void;
@@ -324,17 +328,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
 
-  startTimer: async () => {
-    const { selectedTimerMode, locale } = get();
+  startTimer: async (startedAt = Date.now()) => {
+    const { selectedTimerMode, locale, timerState, settings } = get();
+    if (!canStartTimerMode(settings, timerState, selectedTimerMode)) {
+      return;
+    }
 
-    set({ runtimeError: null, pulseStartMode: null });
+    const optimisticTargetEndTime = getStartTargetEndTime(
+      settings,
+      timerState,
+      selectedTimerMode,
+      startedAt
+    );
+    const optimisticTimerState: TimerState = {
+      ...timerState,
+      isRunning: true,
+      currentMode: selectedTimerMode,
+      remainingSeconds: getStartDurationSeconds(settings, timerState, selectedTimerMode),
+      targetEndTime: optimisticTargetEndTime
+    };
+
+    set({
+      runtimeError: null,
+      pulseStartMode: null,
+      timerState: optimisticTimerState,
+      selectedTimerMode
+    });
 
     try {
       await primeFirefoxBackgroundAudio();
 
       const response = await sendRuntimeMessage({
         type: 'POPUP_START_TIMER',
-        payload: { mode: selectedTimerMode }
+        payload: { mode: selectedTimerMode, startedAt }
       });
 
       if (!response?.ok) {
@@ -346,6 +372,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({
+        timerState,
         runtimeError: getActionError(error, t(locale, 'errorStartTimer'))
       });
     }
@@ -357,7 +384,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
-    set({ runtimeError: null });
+    const optimisticTimerState: TimerState = {
+      ...timerState,
+      isRunning: false,
+      remainingSeconds: timerState.targetEndTime
+        ? getRunningDisplaySeconds(timerState.targetEndTime)
+        : timerState.remainingSeconds,
+      targetEndTime: null
+    };
+
+    set({
+      runtimeError: null,
+      timerState: optimisticTimerState
+    });
 
     try {
       const response = await sendRuntimeMessage({ type: 'POPUP_PAUSE_TIMER' });
@@ -371,6 +410,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({
+        timerState,
         runtimeError: getActionError(error, t(locale, 'errorPauseTimer'))
       });
     }

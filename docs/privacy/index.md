@@ -1,6 +1,6 @@
 # Pomodoro Cult Privacy Policy
 
-Last updated: 2026-05-05
+Last updated: 2026-05-10
 
 Pomodoro Cult is published by **Denis Volkov**.
 
@@ -49,7 +49,11 @@ Pomodoro Cult may read the browser UI language to choose the default extension l
 
 ## Permissions used
 
-Pomodoro Cult uses the `storage` permission to save timer state, settings, tasks, theme, language preference, and local statistics between browser sessions.
+Pomodoro Cult uses these Firefox permissions:
+
+- `storage` to save timer state, settings, tasks, theme, language preference, and local statistics between browser sessions
+- `notifications` to show a system notification when a timer completes
+- `alarms` to wake the Firefox background runtime at the correct timer completion time
 
 ## Support
 
@@ -65,7 +69,7 @@ If this extension's data behavior changes, this page will be updated before or a
 
 # Политика конфиденциальности Pomodoro Cult
 
-Дата обновления: 2026-05-05
+Дата обновления: 2026-05-10
 
 Pomodoro Cult публикуется **Denis Volkov**.
 
@@ -73,7 +77,7 @@ Pomodoro Cult публикуется **Denis Volkov**.
 
 ## Общее описание
 
-Pomodoro Cult - это браузерное расширение с таймером фокуса, задачами и локальной статистикой сессий.
+Pomodoro Cult — это браузерное расширение с таймером фокуса, выбором задач и локальной статистикой сессий.
 
 Расширение рассчитано на локальную работу в браузере. Во время обычного использования оно не отправляет пользовательские данные на удаленный сервер.
 
@@ -114,7 +118,11 @@ Pomodoro Cult может читать язык интерфейса браузе
 
 ## Используемые permissions
 
-Pomodoro Cult использует permission `storage`, чтобы сохранять состояние таймера, настройки, задачи, тему, язык и локальную статистику между сессиями браузера.
+Pomodoro Cult использует в Firefox следующие permissions:
+
+- `storage` для сохранения состояния таймера, настроек, задач, темы, языка и локальной статистики между сессиями браузера
+- `notifications` для показа системного уведомления после завершения таймера
+- `alarms` для пробуждения Firefox background runtime в точный момент завершения таймера
 
 ## Поддержка
 

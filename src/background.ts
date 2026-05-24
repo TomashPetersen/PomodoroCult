@@ -3,6 +3,9 @@ import {
   addSessionStatistics,
   ensureNoTask,
   getDurationSeconds,
+  getRunningDisplaySeconds,
+  getStartDurationSeconds,
+  getStartTargetEndTime,
   initializeStorage,
   readStoredData,
   setLocal,
@@ -111,7 +114,7 @@ const buildRunningState = (
   activeTaskId
 });
 
-const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
+const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<TimerState> => {
   const data = await initializeStorage();
   const { settings } = data;
   let { tasks, timerState } = data;
@@ -144,11 +147,8 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
     );
   }
 
-  const durationSeconds =
-    timerState.currentMode === mode && timerState.remainingSeconds > 0
-      ? timerState.remainingSeconds
-      : getDurationSeconds(settings, mode);
-  const targetEndTime = Date.now() + durationSeconds * 1000;
+  const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
+  const targetEndTime = getStartTargetEndTime(settings, timerState, mode, startedAt);
   const nextState = buildRunningState(
     timerState,
     mode,
@@ -164,6 +164,7 @@ const handleStartTimer = async (mode: TimerMode): Promise<TimerState> => {
   await startOffscreenTimer({
     mode,
     durationSeconds,
+    targetEndTime,
     activeTaskId: activeTaskId ?? null,
     statSeconds: getDurationSeconds(settings, mode)
   });
@@ -179,7 +180,7 @@ const handlePauseTimer = async (): Promise<TimerState> => {
   }
 
   const remainingSeconds = timerState.targetEndTime
-    ? Math.max(0, Math.ceil((timerState.targetEndTime - Date.now()) / 1000))
+    ? getRunningDisplaySeconds(timerState.targetEndTime)
     : timerState.remainingSeconds;
   const nextState: TimerState = {
     ...timerState,
@@ -290,7 +291,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':
-        sendResponse({ ok: true, timerState: await handleStartTimer(message.payload.mode) });
+        sendResponse({
+          ok: true,
+          timerState: await handleStartTimer(message.payload.mode, message.payload.startedAt)
+        });
         return;
       case 'POPUP_PAUSE_TIMER':
         sendResponse({ ok: true, timerState: await handlePauseTimer() });

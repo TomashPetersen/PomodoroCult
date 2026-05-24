@@ -28,6 +28,80 @@ export const getDurationSeconds = (settings: Settings, mode: TimerMode): number 
   return settings.longBreak * 60;
 };
 
+export const getRunningDisplaySeconds = (
+  targetEndTime: number,
+  now = Date.now()
+): number => {
+  const remainingMs = targetEndTime - now;
+  if (remainingMs <= 0) return 0;
+  return Math.max(0, Math.ceil(remainingMs / 1000));
+};
+
+export const getStartDurationSeconds = (
+  settings: Settings,
+  timerState: TimerState,
+  mode: TimerMode
+): number =>
+  timerState.currentMode === mode && timerState.remainingSeconds > 0
+    ? timerState.remainingSeconds
+    : getDurationSeconds(settings, mode);
+
+export const isResumingPausedTimer = (
+  settings: Settings,
+  timerState: TimerState,
+  mode: TimerMode
+): boolean => {
+  const fullDuration = getDurationSeconds(settings, mode);
+
+  return (
+    !timerState.isRunning &&
+    timerState.targetEndTime === null &&
+    timerState.currentMode === mode &&
+    timerState.remainingSeconds > 0 &&
+    timerState.remainingSeconds < fullDuration
+  );
+};
+
+export const getStartTargetEndTime = (
+  settings: Settings,
+  timerState: TimerState,
+  mode: TimerMode,
+  now = Date.now()
+): number => {
+  const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
+  return now + durationSeconds * 1000;
+};
+
+export const canStartTimerMode = (
+  settings: Settings,
+  timerState: TimerState,
+  mode: TimerMode
+): boolean => {
+  if (timerState.isRunning) {
+    return timerState.currentMode === mode;
+  }
+  return timerState.currentMode === mode;
+};
+
+export const hasStartedTimerCycle = (
+  settings: Settings,
+  timerState: TimerState
+): boolean => {
+  if (timerState.isRunning) {
+    return true;
+  }
+
+  if (timerState.completedSessions > 0) {
+    return true;
+  }
+
+  if (timerState.currentMode !== 'work') {
+    return true;
+  }
+
+  return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
+};
+
 export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
   if (timerState.isRunning) return true;
   if (timerState.currentMode !== 'work') return true;

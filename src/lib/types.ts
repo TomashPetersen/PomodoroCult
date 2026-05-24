@@ -58,12 +58,13 @@ export interface StoredData {
 export interface StartTimerPayload {
   mode: TimerMode;
   durationSeconds: number;
+  targetEndTime: number;
   activeTaskId: string | null;
   statSeconds: number;
 }
 
 export type RuntimeMessage =
-  | { type: 'POPUP_START_TIMER'; payload: { mode: TimerMode } }
+  | { type: 'POPUP_START_TIMER'; payload: { mode: TimerMode; startedAt: number } }
   | { type: 'POPUP_PAUSE_TIMER' }
   | { type: 'POPUP_RESET_TIMER' }
   | { type: 'POPUP_ENSURE_READY' }
