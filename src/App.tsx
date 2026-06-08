@@ -19,7 +19,7 @@ export const App = () => {
   }, [initialize]);
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-white">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#f6f8fa] text-[#111827] dark:bg-[#0d1117] dark:text-[#f0f3f6]">
       <main className="min-h-0 flex-1 overflow-hidden px-4 pb-3 pt-4 sm:px-5">
         {!hydrated ? (
           <div className="grid h-full place-items-center text-sm text-zinc-500 dark:text-zinc-400">

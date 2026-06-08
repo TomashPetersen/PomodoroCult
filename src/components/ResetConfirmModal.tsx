@@ -12,7 +12,7 @@ export const ResetConfirmModal = () => {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/55 p-5 backdrop-blur-sm">
-      <div className="w-full rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-5 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
             <AlertTriangle className="h-5 w-5" />
@@ -29,7 +29,7 @@ export const ResetConfirmModal = () => {
           <button
             type="button"
             onClick={closeResetConfirm}
-            className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white"
+            className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
           >
             {t(locale, 'cancel')}
           </button>

@@ -83,7 +83,7 @@ export const StatsScreen = () => {
       <header className="space-y-3">
         <div className="flex min-h-9 items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'stats')}</h1>
-          <div className="grid grid-cols-3 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
+          <div className="grid grid-cols-3 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
             {QUICK_STATS_PERIODS.map((period) => (
               <button
                 key={period}
@@ -92,8 +92,8 @@ export const StatsScreen = () => {
                 className={cn(
                   'h-8 rounded-lg px-2 text-xs font-medium transition',
                   statsPeriod === period
-                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
-                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100'
+                    ? 'bg-[#fcfcfb] text-zinc-950 shadow-sm dark:bg-[#21262d] dark:text-[#f0f3f6]'
+                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-[#f0f3f6]'
                 )}
               >
                 {getStatsPeriodLabel(locale, period)}
@@ -105,9 +105,9 @@ export const StatsScreen = () => {
         <button
           type="button"
           onClick={openStatsRangeModal}
-          className="flex h-11 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 text-left shadow-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+          className="flex h-11 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-left shadow-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#161b22] dark:hover:border-zinc-700"
         >
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#eaeef2] text-zinc-600 dark:bg-[#21262d] dark:text-zinc-300">
             <Calendar className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -122,7 +122,7 @@ export const StatsScreen = () => {
       </header>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-sm dark:border-zinc-800 dark:bg-[#161b22]">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {selectedTitle
               ? t(locale, 'sessionsMetric', { title: selectedTitle })
@@ -132,7 +132,7 @@ export const StatsScreen = () => {
             {selectedRow?.sessions ?? 0}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-sm dark:border-zinc-800 dark:bg-[#161b22]">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {selectedTitle
               ? t(locale, 'timeMetric', { title: selectedTitle })
@@ -164,7 +164,7 @@ export const StatsScreen = () => {
                     'flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left shadow-sm transition',
                     active
                       ? 'border-rose-300 bg-rose-50 dark:border-rose-500/60 dark:bg-rose-500/10'
-                      : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
+                      : 'border-zinc-200 bg-[#fcfcfb] hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#161b22] dark:hover:border-zinc-700'
                   )}
                 >
                   <div className="min-w-0">

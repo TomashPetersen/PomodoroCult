@@ -1,5 +1,5 @@
 export const NO_TASK_ID = 'task-no-task';
-export const TASK_TITLE_MAX_LENGTH = 12;
+export const TASK_TITLE_MAX_LENGTH = 40;
 
 export const SETTINGS_FIELDS = [
   { key: 'workTime', min: 1, max: 180 },

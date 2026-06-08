@@ -16,7 +16,7 @@
 
   body {
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    background: #fafafa;
+    background: #f6f8fa;
   }
 
   button,
@@ -43,6 +43,10 @@
 
   .dark ::-webkit-scrollbar-thumb {
     background: #3f3f46;
+  }
+
+  :root.dark body {
+    background: #0d1117;
   }
 }
 

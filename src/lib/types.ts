@@ -16,9 +16,12 @@ export interface Settings {
 export interface Task {
   id: string;
   title: string;
+  createdAt?: number;
   usageCount: number;
   lastUsed: number;
   system?: boolean;
+  archived?: boolean;
+  archivedAt?: number | null;
 }
 
 export interface TimerState {

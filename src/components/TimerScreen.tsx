@@ -4,7 +4,9 @@ import { getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
 import {
   canStartTimerMode,
+  formatCompactCount,
   getDurationSeconds,
+  getTaskSessionCount,
   getRunningDisplaySeconds,
   hasStartedTimerCycle
 } from '../lib/storage';
@@ -17,6 +19,7 @@ export const TimerScreen = () => {
   const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
   const timerState = useAppStore((state) => state.timerState);
+  const statistics = useAppStore((state) => state.statistics);
   const selectedMode = useAppStore((state) => state.selectedTimerMode);
   const pulseStartMode = useAppStore((state) => state.pulseStartMode);
   const runtimeError = useAppStore((state) => state.runtimeError);
@@ -56,6 +59,8 @@ export const TimerScreen = () => {
   const stopDisabled = !hasStartedTimerCycle(settings, timerState);
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
   const showCompletedSessions = selectedMode === 'work';
+  const selectedTaskTomatoes = getTaskSessionCount(statistics, timerState.activeTaskId);
+  const selectedTaskTomatoLabel = formatCompactCount(locale, selectedTaskTomatoes);
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) {
@@ -81,14 +86,14 @@ export const TimerScreen = () => {
         <button
           type="button"
           onClick={openSettings}
-          className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
+          className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
           aria-label={t(locale, 'settings')}
           title={t(locale, 'settings')}
         >
           <Settings className="h-5 w-5" />
         </button>
 
-        <div className="grid grid-cols-3 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
+        <div className="grid grid-cols-3 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
           {tabs.map((tab) => {
             const active = selectedMode === tab.mode;
             const running = timerState.isRunning && timerState.currentMode === tab.mode;
@@ -101,8 +106,8 @@ export const TimerScreen = () => {
                 className={cn(
                   'relative flex h-12 flex-col items-center justify-center rounded-lg px-1.5 text-center transition',
                   active
-                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
-                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100'
+                    ? 'bg-[#fcfcfb] text-zinc-950 shadow-sm dark:bg-[#21262d] dark:text-[#f0f3f6]'
+                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-[#f0f3f6]'
                 )}
               >
                 <span className="max-w-full truncate text-[11px] font-semibold leading-none">
@@ -122,7 +127,7 @@ export const TimerScreen = () => {
         <button
           type="button"
           onClick={toggleTheme}
-          className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
+          className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
           aria-label={t(locale, 'theme')}
           title={t(locale, 'theme')}
         >
@@ -140,7 +145,7 @@ export const TimerScreen = () => {
               fill="none"
               stroke="currentColor"
               strokeWidth="12"
-              className="text-zinc-100 dark:text-zinc-900"
+              className="text-[#eaeef2] dark:text-[#21262d]"
             />
             <circle
               cx="129"
@@ -169,8 +174,14 @@ export const TimerScreen = () => {
               {formatClock(displaySeconds)}
             </span>
             {showCompletedSessions && (
-              <span className="absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex min-h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-3 text-xs font-semibold text-white shadow-sm">
-                {timerState.completedSessions}
+              <span
+                className={cn(
+                  'absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-2 font-semibold tabular-nums text-white shadow-sm',
+                  selectedTaskTomatoLabel.length > 3 ? 'text-[11px]' : 'text-sm'
+                )}
+                title={String(selectedTaskTomatoes)}
+              >
+                {selectedTaskTomatoLabel}
               </span>
             )}
           </div>
@@ -210,8 +221,8 @@ export const TimerScreen = () => {
                   }
             }
             className={cn(
-              'grid h-12 w-12 place-items-center rounded-full bg-zinc-950 text-white shadow-sm transition',
-              'hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200',
+              'grid h-12 w-12 place-items-center rounded-full bg-[#24292f] text-[#f6f8fa] shadow-sm transition',
+              'hover:bg-[#32383f] dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]',
               primaryDisabled && 'cursor-not-allowed opacity-40',
               primaryBusy && 'pointer-events-none',
               startPulse && 'soft-pulse'
@@ -228,7 +239,7 @@ export const TimerScreen = () => {
             onClick={openResetConfirm}
             className={cn(
               'grid h-12 w-12 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
-              'hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-white',
+              'hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
               stopDisabled && 'cursor-not-allowed opacity-40'
             )}
             aria-label={t(locale, 'stop')}

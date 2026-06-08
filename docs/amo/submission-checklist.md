@@ -13,10 +13,7 @@ Build commands:
 ```powershell
 npx.cmd tsc --noEmit
 npm.cmd run build:firefox
-Compress-Archive -Path dist-firefox\* -DestinationPath artifacts\pomodoro-cult-firefox.zip -Force
-Move-Item -LiteralPath artifacts\pomodoro-cult-firefox.zip -Destination artifacts\pomodoro-cult-firefox.xpi -Force
-$include = Get-ChildItem -Force | Where-Object { $_.Name -notin @('.git','node_modules','dist','dist-firefox','artifacts') }
-Compress-Archive -Path $include.FullName -DestinationPath artifacts\pomodoro-cult-firefox-source.zip -Force
+.\scripts\package-firefox-artifacts.ps1
 ```
 
 ## 2. Listing fields

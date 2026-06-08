@@ -16,7 +16,7 @@ export const FooterNav = () => {
   const setScreen = useAppStore((state) => state.setScreen);
 
   return (
-    <footer className="grid h-16 shrink-0 grid-cols-3 border-t border-zinc-200 bg-white/96 px-6 py-2 dark:border-zinc-800 dark:bg-zinc-950/96">
+    <footer className="grid h-16 shrink-0 grid-cols-3 border-t border-zinc-200 bg-[#f6f8fa]/96 px-6 py-2 dark:border-zinc-800 dark:bg-[#0d1117]/96">
       {items.map((item) => {
         const Icon = item.icon;
         const active = selectedScreen === item.screen;
@@ -30,8 +30,8 @@ export const FooterNav = () => {
             className={cn(
               'mx-auto grid h-11 w-11 place-items-center rounded-xl transition',
               active
-                ? 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950'
-                : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white'
+                ? 'bg-[#24292f] text-[#f6f8fa] dark:bg-[#f0f3f6] dark:text-[#161b22]'
+                : 'text-zinc-500 hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]'
             )}
             aria-label={label}
             title={label}

@@ -15,6 +15,8 @@ import {
   getRunningDisplaySeconds,
   getStartDurationSeconds,
   getStartTargetEndTime,
+  hasStartedTimerCycle,
+  hasActiveTaskTitle,
   initializeStorage,
   isTimerTaskLocked,
   normalizeSettings,
@@ -60,6 +62,8 @@ interface AppStore extends StoredData {
   selectedStatsTaskId: string | null;
   statsTaskSelectionTouched: boolean;
   settingsOpen: boolean;
+  taskActionError: string | null;
+  highlightedTaskId: string | null;
   initialize: () => Promise<void>;
   setScreen: (screen: AppScreen) => void;
   setTimerMode: (mode: TimerMode) => void;
@@ -75,9 +79,13 @@ interface AppStore extends StoredData {
   closeResetConfirm: () => void;
   confirmReset: () => Promise<void>;
   selectTask: (taskId: string | null) => Promise<void>;
-  addTask: (title: string) => Promise<void>;
+  addTask: (title: string, options?: { select?: boolean; highlight?: boolean }) => Promise<string | null>;
   updateTask: (taskId: string, title: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
+  archiveTask: (taskId: string) => Promise<void>;
+  restoreTask: (taskId: string) => Promise<void>;
+  clearTaskActionError: () => void;
+  clearHighlightedTask: () => void;
   setStatsPeriod: (period: QuickStatsPeriod) => void;
   openStatsRangeModal: () => void;
   closeStatsRangeModal: () => void;
@@ -87,6 +95,7 @@ interface AppStore extends StoredData {
 }
 
 let storageListenerAttached = false;
+let highlightedTaskTimeoutId: number | null = null;
 
 const canUseRuntime = (): boolean =>
   typeof chrome !== 'undefined' && Boolean(chrome.runtime?.sendMessage);
@@ -174,6 +183,19 @@ const presetRange = getPresetStatsRange(1);
 const getActionError = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
+const scheduleHighlightedTaskClear = (set: (partial: Partial<AppStore>) => void): void => {
+  if (typeof window === 'undefined') return;
+
+  if (highlightedTaskTimeoutId !== null) {
+    window.clearTimeout(highlightedTaskTimeoutId);
+  }
+
+  highlightedTaskTimeoutId = window.setTimeout(() => {
+    highlightedTaskTimeoutId = null;
+    set({ highlightedTaskId: null });
+  }, 1800);
+};
+
 export const useAppStore = create<AppStore>((set, get) => ({
   ...initialData,
   hydrated: false,
@@ -190,6 +212,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectedStatsTaskId: null,
   statsTaskSelectionTouched: false,
   settingsOpen: false,
+  taskActionError: null,
+  highlightedTaskId: null,
 
   initialize: async () => {
     try {
@@ -463,18 +487,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await setLocal({ timerState: nextTimerState });
   },
 
-  addTask: async (rawTitle) => {
+  addTask: async (rawTitle, options) => {
     const title = clampTaskTitle(rawTitle);
-    if (!title) return;
+    if (!title) return null;
 
-    const { tasks } = get();
-    const duplicate = tasks.some((task) => task.id !== NO_TASK_ID && task.title.toLowerCase() === title.toLowerCase());
-    if (duplicate) return;
+    const { tasks, timerState } = get();
+    if (hasActiveTaskTitle(tasks, title)) {
+      set({ taskActionError: t(get().locale, 'taskDuplicateError') });
+      return null;
+    }
 
-    const nextTasks = sortTasks([...ensureNoTask(tasks), createTask(title)]);
+    const task = createTask(title);
+    const nextTasks = sortTasks([...ensureNoTask(tasks), task]);
+    const shouldSelect = options?.select ?? true;
+    const shouldHighlight = options?.highlight ?? true;
+    const nextTimerState =
+      shouldSelect
+        ? {
+            ...timerState,
+            activeTaskId: task.id
+          }
+        : timerState;
 
-    set({ tasks: nextTasks });
-    await setLocal({ tasks: nextTasks });
+    set({
+      tasks: nextTasks,
+      timerState: nextTimerState,
+      highlightedTaskId: shouldHighlight ? task.id : null,
+      taskActionError: null
+    });
+    if (shouldHighlight) {
+      scheduleHighlightedTaskClear(set);
+    }
+    await setLocal({ tasks: nextTasks, timerState: nextTimerState });
+    return task.id;
   },
 
   updateTask: async (taskId, rawTitle) => {
@@ -485,25 +530,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const target = tasks.find((task) => task.id === taskId);
     if (!target || target.system || taskId === NO_TASK_ID) return;
 
-    const duplicate = tasks.some(
-      (task) => task.id !== taskId && task.id !== NO_TASK_ID && task.title.toLowerCase() === title.toLowerCase()
-    );
-    if (duplicate) return;
+    if (hasActiveTaskTitle(tasks, title, taskId)) {
+      set({ taskActionError: t(get().locale, 'taskDuplicateError') });
+      return;
+    }
 
     const nextTasks = sortTasks(
       tasks.map((task) => (task.id === taskId ? { ...task, title } : task))
     );
 
-    set({ tasks: nextTasks });
+    set({ tasks: nextTasks, taskActionError: null });
     await setLocal({ tasks: nextTasks });
   },
 
   deleteTask: async (taskId) => {
-    const { tasks, timerState } = get();
+    const { settings, tasks, timerState, locale } = get();
+    if (taskId === timerState.activeTaskId && hasStartedTimerCycle(settings, timerState)) {
+      set({ taskActionError: t(locale, 'taskChangeRequiresStop') });
+      return;
+    }
+
     const target = tasks.find((task) => task.id === taskId);
     if (!target || target.system || taskId === NO_TASK_ID) return;
 
-    const nextTasks = tasks.filter((task) => task.id !== taskId);
+    const nextTasks = sortTasks(tasks.filter((task) => task.id !== taskId));
     const nextTimerState =
       timerState.activeTaskId === taskId
         ? {
@@ -514,13 +564,89 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     set({
       tasks: nextTasks,
-      timerState: nextTimerState
+      timerState: nextTimerState,
+      taskActionError: null
     });
     await setLocal({
       tasks: nextTasks,
       timerState: nextTimerState
     });
   },
+
+  archiveTask: async (taskId) => {
+    const { settings, tasks, timerState, locale } = get();
+    if (taskId === timerState.activeTaskId && hasStartedTimerCycle(settings, timerState)) {
+      set({ taskActionError: t(locale, 'taskChangeRequiresStop') });
+      return;
+    }
+
+    const target = tasks.find((task) => task.id === taskId);
+    if (!target || target.system || taskId === NO_TASK_ID) return;
+
+    const nextTasks = sortTasks(
+      tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              archived: true,
+              archivedAt: Date.now()
+            }
+          : task
+      )
+    );
+    const nextTimerState =
+      timerState.activeTaskId === taskId
+        ? {
+            ...timerState,
+            activeTaskId: null
+          }
+        : timerState;
+
+    set({
+      tasks: nextTasks,
+      timerState: nextTimerState,
+      taskActionError: null
+    });
+    await setLocal({
+      tasks: nextTasks,
+      timerState: nextTimerState
+    });
+  },
+
+  restoreTask: async (taskId) => {
+    const { tasks } = get();
+    const target = tasks.find((task) => task.id === taskId);
+    if (!target || target.system || taskId === NO_TASK_ID || !target.archived) return;
+
+    if (hasActiveTaskTitle(tasks, target.title, taskId)) {
+      set({ taskActionError: t(get().locale, 'taskRestoreDuplicateError') });
+      return;
+    }
+
+    const nextTasks = sortTasks(
+      tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              archived: false,
+              archivedAt: null
+            }
+          : task
+      )
+    );
+
+    set({
+      tasks: nextTasks,
+      highlightedTaskId: taskId,
+      taskActionError: null
+    });
+    scheduleHighlightedTaskClear(set);
+    await setLocal({ tasks: nextTasks });
+  },
+
+  clearTaskActionError: () => set({ taskActionError: null }),
+
+  clearHighlightedTask: () => set({ highlightedTaskId: null }),
 
   setStatsPeriod: (period) => {
     const today = getLocalDateKey();

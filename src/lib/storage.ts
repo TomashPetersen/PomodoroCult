@@ -1,4 +1,4 @@
-import { NO_TASK_ID, TASK_TITLE_MAX_LENGTH } from './constants';
+import { NO_TASK_ID, SETTINGS_FIELDS, TASK_TITLE_MAX_LENGTH } from './constants';
 import { getTaskTitle } from './i18n';
 import {
   DEFAULT_SETTINGS,
@@ -105,6 +105,7 @@ export const hasStartedTimerCycle = (
 export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
   if (timerState.isRunning) return true;
   if (timerState.currentMode !== 'work') return true;
+  if (timerState.completedSessions > 0) return true;
   return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
 };
 
@@ -118,6 +119,8 @@ export const areTimerDurationsLocked = (settings: Settings, timerState: TimerSta
 export const clampTaskTitle = (title: string): string =>
   title.trim().replace(/\s+/g, ' ').slice(0, TASK_TITLE_MAX_LENGTH);
 
+export const getTaskTitleKey = (title: string): string => clampTaskTitle(title).toLocaleLowerCase('en');
+
 export const createId = (): string => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -126,30 +129,41 @@ export const createId = (): string => {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
+type NumericSettingKey = (typeof SETTINGS_FIELDS)[number]['key'];
+
 export const createTask = (title: string, system = false): Task => ({
   id: system ? NO_TASK_ID : createId(),
   title: clampTaskTitle(title),
+  createdAt: Date.now(),
   usageCount: 0,
   lastUsed: 0,
-  system
+  system,
+  archived: false,
+  archivedAt: null
 });
 
 export const createNoTask = (): Task => ({
   id: NO_TASK_ID,
   title: '',
+  createdAt: 0,
   usageCount: 0,
   lastUsed: 0,
-  system: true
+  system: true,
+  archived: false,
+  archivedAt: null
 });
 
+const normalizeSettingNumber = (settings: Partial<Settings> | undefined, key: NumericSettingKey): number => {
+  const field = SETTINGS_FIELDS.find((item) => item.key === key)!;
+  const value = Math.round(Number(settings?.[key] ?? DEFAULT_SETTINGS[key]));
+  return Math.max(field.min, Math.min(field.max, Number.isFinite(value) ? value : DEFAULT_SETTINGS[key]));
+};
+
 export const normalizeSettings = (settings?: Partial<Settings>): Settings => ({
-  workTime: Math.max(1, Math.round(Number(settings?.workTime ?? DEFAULT_SETTINGS.workTime))),
-  shortBreak: Math.max(1, Math.round(Number(settings?.shortBreak ?? DEFAULT_SETTINGS.shortBreak))),
-  longBreak: Math.max(1, Math.round(Number(settings?.longBreak ?? DEFAULT_SETTINGS.longBreak))),
-  longBreakInterval: Math.max(
-    2,
-    Math.round(Number(settings?.longBreakInterval ?? DEFAULT_SETTINGS.longBreakInterval))
-  ),
+  workTime: normalizeSettingNumber(settings, 'workTime'),
+  shortBreak: normalizeSettingNumber(settings, 'shortBreak'),
+  longBreak: normalizeSettingNumber(settings, 'longBreak'),
+  longBreakInterval: normalizeSettingNumber(settings, 'longBreakInterval'),
   languagePreference:
     settings?.languagePreference === 'ru' || settings?.languagePreference === 'en'
       ? settings.languagePreference
@@ -171,9 +185,17 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
     normalized.push({
       id,
       title: id === NO_TASK_ID ? '' : title,
+      createdAt:
+        id === NO_TASK_ID
+          ? 0
+          : Number(task.createdAt) > 0
+            ? Number(task.createdAt)
+            : Math.max(0, Number(task.lastUsed) || 0),
       usageCount: Math.max(0, Number(task.usageCount) || 0),
       lastUsed: Math.max(0, Number(task.lastUsed) || 0),
-      system: id === NO_TASK_ID || Boolean(task.system)
+      system: id === NO_TASK_ID || Boolean(task.system),
+      archived: id === NO_TASK_ID ? false : Boolean(task.archived),
+      archivedAt: Number(task.archivedAt) > 0 ? Number(task.archivedAt) : null
     });
   }
 
@@ -194,7 +216,10 @@ export const ensureNoTask = (tasks: Task[]): Task[] => {
         ? {
             ...task,
             title: '',
-            system: true
+            createdAt: 0,
+            system: true,
+            archived: false,
+            archivedAt: null
           }
         : task
     )
@@ -204,12 +229,77 @@ export const ensureNoTask = (tasks: Task[]): Task[] => {
 export const sortTasksByUse = (a: Task, b: Task): number => {
   if (a.id === NO_TASK_ID && b.id !== NO_TASK_ID) return -1;
   if (b.id === NO_TASK_ID && a.id !== NO_TASK_ID) return 1;
-  if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+  if ((b.createdAt ?? 0) !== (a.createdAt ?? 0)) return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   if (b.lastUsed !== a.lastUsed) return b.lastUsed - a.lastUsed;
-  return a.title.localeCompare(b.title, 'en');
+  if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+  return 0;
 };
 
 export const sortTasks = (tasks: Task[]): Task[] => [...tasks].sort(sortTasksByUse);
+
+export const getActiveTasks = (tasks: Task[], priorityTaskId?: string | null): Task[] => {
+  const normalized = ensureNoTask(tasks);
+  const active = normalized.filter((task) => task.id === NO_TASK_ID || !task.archived);
+
+  return active.sort((a, b) => {
+    if (a.id === NO_TASK_ID && b.id !== NO_TASK_ID) return -1;
+    if (b.id === NO_TASK_ID && a.id !== NO_TASK_ID) return 1;
+    if (priorityTaskId && a.id === priorityTaskId && b.id !== priorityTaskId) return -1;
+    if (priorityTaskId && b.id === priorityTaskId && a.id !== priorityTaskId) return 1;
+    return sortTasksByUse(a, b);
+  });
+};
+
+export const getArchivedTasks = (tasks: Task[]): Task[] =>
+  normalizeTasks(tasks)
+    .filter((task) => task.id !== NO_TASK_ID && task.archived)
+    .sort((a, b) => {
+      if ((b.archivedAt ?? 0) !== (a.archivedAt ?? 0)) {
+        return (b.archivedAt ?? 0) - (a.archivedAt ?? 0);
+      }
+      return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+    });
+
+export const hasActiveTaskTitle = (
+  tasks: Task[],
+  title: string,
+  excludeTaskId?: string | null
+): boolean => {
+  const key = getTaskTitleKey(title);
+  if (!key) return false;
+
+  return normalizeTasks(tasks).some(
+    (task) =>
+      task.id !== NO_TASK_ID &&
+      task.id !== excludeTaskId &&
+      !task.archived &&
+      getTaskTitleKey(task.title) === key
+  );
+};
+
+export const getTaskSessionCount = (
+  statistics: Statistics,
+  taskId: string | null
+): number => {
+  const resolvedTaskId = taskId ?? NO_TASK_ID;
+
+  return Object.values(statistics).reduce((total, day) => {
+    const taskStat = day.tasks[resolvedTaskId];
+    return total + (taskStat?.sessions ?? 0);
+  }, 0);
+};
+
+export const formatCompactCount = (locale: Locale, count: number): string => {
+  if (count < 1000) return String(count);
+
+  const value = count / 1000;
+  const formatted = value.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0
+  });
+
+  return locale === 'ru' ? `${formatted} к` : `${formatted}K`;
+};
 
 export const getDisplayTaskTitle = (locale: Locale, task: Pick<Task, 'id' | 'title'>): string =>
   getTaskTitle(locale, task.id, task.title);

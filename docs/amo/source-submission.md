@@ -36,16 +36,17 @@ The production artifact is built with Vite.
 ## Firefox artifact packaging
 
 ```powershell
-Compress-Archive -Path dist-firefox\* -DestinationPath artifacts\pomodoro-cult-firefox.zip -Force
-Move-Item -LiteralPath artifacts\pomodoro-cult-firefox.zip -Destination artifacts\pomodoro-cult-firefox.xpi -Force
+.\scripts\package-firefox-artifacts.ps1
 ```
 
 ## Source package packaging
 
-```powershell
-$include = Get-ChildItem -Force | Where-Object { $_.Name -notin @('.git','node_modules','dist','dist-firefox','artifacts') }
-Compress-Archive -Path $include.FullName -DestinationPath artifacts\pomodoro-cult-firefox-source.zip -Force
-```
+The packaging script above creates both:
+
+- `artifacts/pomodoro-cult-firefox.xpi`
+- `artifacts/pomodoro-cult-firefox-source.zip`
+
+It writes zip entries with forward slashes so AMO accepts the archive on Windows.
 
 ## Notes for review
 

@@ -1,6 +1,6 @@
 # Pomodoro Cult Privacy Policy
 
-Last updated: 2026-05-10
+Last updated: 2026-05-28
 
 Pomodoro Cult is published by **Denis Volkov**.
 
@@ -10,7 +10,7 @@ Contact: **dgvolkovhard@gmail.com**
 
 Pomodoro Cult is a browser extension that provides a focus timer, task selection, and local session statistics.
 
-This extension is designed to work locally in the browser. During normal operation, it does not send user data to a remote server.
+The extension is designed to work locally in the browser. During normal operation, it does not send user data to a remote server.
 
 ## What data is stored
 
@@ -69,7 +69,7 @@ If this extension's data behavior changes, this page will be updated before or a
 
 # Политика конфиденциальности Pomodoro Cult
 
-Дата обновления: 2026-05-10
+Дата обновления: 2026-05-28
 
 Pomodoro Cult публикуется **Denis Volkov**.
 
@@ -95,7 +95,7 @@ Pomodoro Cult сохраняет в локальном хранилище рас
 
 ## Где хранятся данные
 
-Все данные расширения хранятся в локальном хранилище расширения браузера на устройстве пользователя.
+Все данные расширения хранятся в локальном хранилище браузерного расширения на устройстве пользователя.
 
 ## Что не собирается
 
