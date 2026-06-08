@@ -89,6 +89,7 @@ Manual QA should verify:
 - Settings values can be typed without jumping, save only valid changes, and clamp on blur/save.
 - Calendar popovers open from the field/icon, enforce ranges, and close independently.
 - Firefox timer start, pause, stop, break/rest rules, background sound, and notification still work.
+- Statistics rows can be deleted only through an explicit confirmation modal, and confirmed deletion removes the task's saved statistics permanently from local storage.
 
 ## Idempotence and Recovery
 
@@ -105,6 +106,7 @@ No new runtime permissions or dependencies are planned. Public internal interfac
 - `Task` gains archive fields.
 - Store task creation returns the created task id or `null`.
 - Store gains archive/restore methods and transient duplicate/highlight UI state.
+- Store gains destructive statistics deletion confirmation state and a permanent statistics cleanup action for a selected task.
 
 Revision note 2026-06-07: Created this plan from the user-approved v1.0.1 scope so implementation can proceed safely across storage, UI, and release packaging.
 
@@ -119,3 +121,5 @@ Revision note 2026-06-08: Added QA-Agent follow-up fixes and final validation st
 Revision note 2026-06-08: Updated the plan after the final Firefox-facing polish pass for theme surfaces, task immutability, archive action rules, and the centered calendar overlay.
 
 Revision note 2026-06-08: Added the follow-up calendar-dismiss behavior, revised lock copy, and neutral palette adjustment after manual visual review feedback.
+
+Revision note 2026-06-08: Added permanent task-statistics deletion with a dedicated confirmation modal and full local-storage cleanup across all saved days.

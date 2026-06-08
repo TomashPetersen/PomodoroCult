@@ -20,6 +20,7 @@ import {
   initializeStorage,
   isTimerTaskLocked,
   normalizeSettings,
+  removeTaskStatistics,
   setLocal,
   sortTasks
 } from '../lib/storage';
@@ -59,6 +60,7 @@ interface AppStore extends StoredData {
   statsRangeStart: string;
   statsRangeEnd: string;
   statsRangeModalOpen: boolean;
+  statsDeleteConfirmTaskId: string | null;
   selectedStatsTaskId: string | null;
   statsTaskSelectionTouched: boolean;
   settingsOpen: boolean;
@@ -90,6 +92,9 @@ interface AppStore extends StoredData {
   openStatsRangeModal: () => void;
   closeStatsRangeModal: () => void;
   applyCustomStatsRange: (start: string, end: string) => void;
+  openStatsDeleteConfirm: (taskId: string) => void;
+  closeStatsDeleteConfirm: () => void;
+  confirmStatsDelete: () => Promise<void>;
   selectStatsTask: (taskId: string) => void;
   applyAutoStatsTask: (taskId: string | null) => void;
 }
@@ -209,6 +214,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   statsRangeStart: presetRange.start,
   statsRangeEnd: presetRange.end,
   statsRangeModalOpen: false,
+  statsDeleteConfirmTaskId: null,
   selectedStatsTaskId: null,
   statsTaskSelectionTouched: false,
   settingsOpen: false,
@@ -545,13 +551,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   deleteTask: async (taskId) => {
     const { settings, tasks, timerState, locale } = get();
-    if (taskId === timerState.activeTaskId && hasStartedTimerCycle(settings, timerState)) {
+    const target = tasks.find((task) => task.id === taskId);
+    if (!target || target.system || taskId === NO_TASK_ID) return;
+
+    if (isTimerTaskLocked(settings, timerState) && taskId === timerState.activeTaskId) {
       set({ taskActionError: t(locale, 'taskChangeRequiresStop') });
       return;
     }
-
-    const target = tasks.find((task) => task.id === taskId);
-    if (!target || target.system || taskId === NO_TASK_ID) return;
 
     const nextTasks = sortTasks(tasks.filter((task) => task.id !== taskId));
     const nextTimerState =
@@ -575,7 +581,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   archiveTask: async (taskId) => {
     const { settings, tasks, timerState, locale } = get();
-    if (taskId === timerState.activeTaskId && hasStartedTimerCycle(settings, timerState)) {
+    if (isTimerTaskLocked(settings, timerState) && taskId === timerState.activeTaskId) {
       set({ taskActionError: t(locale, 'taskChangeRequiresStop') });
       return;
     }
@@ -674,6 +680,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
       statsRangeEnd: end,
       statsRangeModalOpen: false
     });
+  },
+
+  openStatsDeleteConfirm: (taskId) => set({ statsDeleteConfirmTaskId: taskId }),
+
+  closeStatsDeleteConfirm: () => set({ statsDeleteConfirmTaskId: null }),
+
+  confirmStatsDelete: async () => {
+    const { statistics, statsDeleteConfirmTaskId, selectedStatsTaskId } = get();
+    if (!statsDeleteConfirmTaskId) return;
+
+    const nextStatistics = removeTaskStatistics(statistics, statsDeleteConfirmTaskId);
+
+    set({
+      statistics: nextStatistics,
+      statsDeleteConfirmTaskId: null,
+      selectedStatsTaskId:
+        selectedStatsTaskId === statsDeleteConfirmTaskId ? null : selectedStatsTaskId
+    });
+
+    await setLocal({ statistics: nextStatistics });
   },
 
   selectStatsTask: (taskId) =>

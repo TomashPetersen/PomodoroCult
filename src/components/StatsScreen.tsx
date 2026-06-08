@@ -1,4 +1,4 @@
-import { BarChart3, Calendar } from 'lucide-react';
+import { BarChart3, Calendar, Trash2 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { QUICK_STATS_PERIODS } from '../lib/constants';
 import { getStatsPeriodLabel, getTaskTitle, pluralizeSessions, t } from '../lib/i18n';
@@ -6,6 +6,8 @@ import { formatDateRange, formatHoursMinutes } from '../lib/format';
 import { getDateRangeBetween } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
+import { ActionIconButton } from './ActionIconButton';
+import { StatsDeleteConfirmModal } from './StatsDeleteConfirmModal';
 import { StatsRangeModal } from './StatsRangeModal';
 
 export const StatsScreen = () => {
@@ -19,6 +21,7 @@ export const StatsScreen = () => {
   const statsTaskSelectionTouched = useAppStore((state) => state.statsTaskSelectionTouched);
   const setStatsPeriod = useAppStore((state) => state.setStatsPeriod);
   const openStatsRangeModal = useAppStore((state) => state.openStatsRangeModal);
+  const openStatsDeleteConfirm = useAppStore((state) => state.openStatsDeleteConfirm);
   const selectStatsTask = useAppStore((state) => state.selectStatsTask);
   const applyAutoStatsTask = useAppStore((state) => state.applyAutoStatsTask);
 
@@ -175,9 +178,23 @@ export const StatsScreen = () => {
                       {row.sessions} {pluralizeSessions(locale, row.sessions)}
                     </p>
                   </div>
-                  <span className="shrink-0 font-mono text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-                    {formatHoursMinutes(row.seconds)}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                      {formatHoursMinutes(row.seconds)}
+                    </span>
+                    <ActionIconButton
+                      type="button"
+                      label={t(locale, 'deleteStats')}
+                      tooltipSide="bottom"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openStatsDeleteConfirm(row.taskId);
+                      }}
+                      className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </ActionIconButton>
+                  </div>
                 </button>
               );
             })}
@@ -186,6 +203,7 @@ export const StatsScreen = () => {
       </section>
 
       <StatsRangeModal />
+      <StatsDeleteConfirmModal />
     </div>
   );
 };

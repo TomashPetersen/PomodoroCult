@@ -67,12 +67,28 @@ export const TimerScreen = () => {
       return;
     }
 
-    setNow(Date.now());
-    const intervalId = window.setInterval(() => {
-      setNow(Date.now());
-    }, 250);
+    let timeoutId: number | null = null;
 
-    return () => window.clearInterval(intervalId);
+    const scheduleNextTick = () => {
+      const currentNow = Date.now();
+      setNow(currentNow);
+
+      const remainingMs = Math.max(0, timerState.targetEndTime! - currentNow);
+      if (remainingMs <= 0) {
+        return;
+      }
+
+      const delay = remainingMs % 1000 || 1000;
+      timeoutId = window.setTimeout(scheduleNextTick, delay);
+    };
+
+    scheduleNextTick();
+
+    return () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [timerState.isRunning, timerState.targetEndTime]);
   const tabs: Array<{ mode: TimerMode; minutes: number }> = [
     { mode: 'work', minutes: settings.workTime },

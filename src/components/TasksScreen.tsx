@@ -26,13 +26,18 @@ export const TasksScreen = () => {
   const [title, setTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [pendingDeleteTaskId, setPendingDeleteTaskId] = useState<string | null>(null);
   const activeTasks = useMemo(() => getActiveTasks(tasks, highlightedTaskId), [highlightedTaskId, tasks]);
   const archivedTasks = useMemo(() => getArchivedTasks(tasks), [tasks]);
   const visibleTasks = tab === 'active' ? activeTasks : archivedTasks;
   const canAdd = title.trim().length > 0 && title.trim().length <= TASK_TITLE_MAX_LENGTH;
-  const cycleStarted = hasStartedTimerCycle(settings, timerState);
   const taskSelectionLocked = isTimerTaskLocked(settings, timerState);
+  const cycleStarted = hasStartedTimerCycle(settings, timerState);
   const lockMessage = t(locale, 'taskChangeRequiresStop');
+  const pendingDeleteTask = pendingDeleteTaskId ? tasks.find((task) => task.id === pendingDeleteTaskId) : null;
+  const pendingDeleteTitle = pendingDeleteTaskId
+    ? getTaskTitle(locale, pendingDeleteTaskId, pendingDeleteTask?.title ?? '')
+    : '';
 
   const submitTask = async (event: FormEvent) => {
     event.preventDefault();
@@ -115,7 +120,6 @@ export const TasksScreen = () => {
             const canSaveEdit =
               editingTitle.trim().length > 0 && editingTitle.trim().length <= TASK_TITLE_MAX_LENGTH;
             const selectedTaskInCycle = task.id === timerState.activeTaskId && cycleStarted;
-
             return (
               <div
                 key={task.id}
@@ -209,7 +213,7 @@ export const TasksScreen = () => {
                           type="button"
                           label={t(locale, 'delete')}
                           tooltipSide="bottom"
-                          onClick={() => void deleteTask(task.id)}
+                          onClick={() => setPendingDeleteTaskId(task.id)}
                           className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -222,13 +226,7 @@ export const TasksScreen = () => {
                           label={t(locale, 'archive')}
                           tooltipSide="bottom"
                           aria-disabled={selectedTaskInCycle}
-                          onClick={() => {
-                            if (selectedTaskInCycle) {
-                              clearTaskActionError();
-                              return void archiveTask(task.id);
-                            }
-                            void archiveTask(task.id);
-                          }}
+                          onClick={() => void archiveTask(task.id)}
                           className={cn(
                             'grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-amber-50 hover:text-amber-600 dark:text-zinc-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-300',
                             selectedTaskInCycle && 'cursor-not-allowed opacity-50'
@@ -243,10 +241,10 @@ export const TasksScreen = () => {
                           aria-disabled={selectedTaskInCycle}
                           onClick={() => {
                             if (selectedTaskInCycle) {
-                              clearTaskActionError();
-                              return void deleteTask(task.id);
+                              void deleteTask(task.id);
+                              return;
                             }
-                            void deleteTask(task.id);
+                            setPendingDeleteTaskId(task.id);
                           }}
                           className={cn(
                             'grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300',
@@ -264,6 +262,48 @@ export const TasksScreen = () => {
           })
         )}
       </div>
+
+      {pendingDeleteTaskId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/55 p-5 backdrop-blur-sm">
+          <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-5 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
+                  {t(locale, 'confirmDeleteTask')}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  {t(locale, 'deleteTaskDescription', { title: pendingDeleteTitle })}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteTaskId(null)}
+                className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+              >
+                {t(locale, 'cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!pendingDeleteTaskId) return;
+                  const taskId = pendingDeleteTaskId;
+                  setPendingDeleteTaskId(null);
+                  await deleteTask(taskId);
+                }}
+                className="h-11 rounded-xl bg-rose-600 px-5 text-sm font-semibold text-white transition hover:bg-rose-500"
+              >
+                {t(locale, 'deleteForever')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -289,6 +289,41 @@ export const getTaskSessionCount = (
   }, 0);
 };
 
+export const removeTaskStatistics = (
+  statistics: Statistics,
+  taskId: string
+): Statistics => {
+  const nextStatistics: Statistics = {};
+
+  for (const [date, day] of Object.entries(statistics)) {
+    const taskStat = day.tasks[taskId];
+
+    if (!taskStat) {
+      nextStatistics[date] = day;
+      continue;
+    }
+
+    const nextTasks = { ...day.tasks };
+    delete nextTasks[taskId];
+
+    const nextSessions = Math.max(0, day.sessions - taskStat.sessions);
+    const nextSeconds = Math.max(0, day.seconds - taskStat.seconds);
+
+    if (Object.keys(nextTasks).length === 0 || (nextSessions === 0 && nextSeconds === 0)) {
+      continue;
+    }
+
+    nextStatistics[date] = {
+      ...day,
+      tasks: nextTasks,
+      sessions: nextSessions,
+      seconds: nextSeconds
+    };
+  }
+
+  return nextStatistics;
+};
+
 export const formatCompactCount = (locale: Locale, count: number): string => {
   if (count < 1000) return String(count);
 
