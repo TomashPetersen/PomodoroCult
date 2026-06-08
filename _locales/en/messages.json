@@ -1,8 +1,8 @@
 {
   "appName": {
-    "message": "Pomodoro Cult"
+    "message": "Pomodoro Cult - Pomodoro Timer & Tasks"
   },
   "appDescription": {
-    "message": "Minimal focus timer with tasks, statistics, and background countdown."
+    "message": "Pomodoro timer for Firefox with tasks, session stats, and reliable background countdown."
   }
 }

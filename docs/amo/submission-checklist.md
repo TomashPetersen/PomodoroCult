@@ -20,7 +20,9 @@ npm.cmd run build:firefox
 
 Use these values in the AMO form:
 
-- **Add-on name:** `Pomodoro Cult`
+- **Default locale:** `English (US)`
+- **English add-on name:** `Pomodoro Cult - Pomodoro Timer & Tasks`
+- **Russian add-on name:** `Помодоро Культ - таймер Pomodoro и задачи`
 - **Author:** `Denis Volkov`
 - **Category:** `Productivity`
 - **Support email:** `dgvolkovhard@gmail.com`
@@ -40,7 +42,7 @@ Text sources:
 
 Prepare these assets before submission:
 
-- Add-on icon: use the Firefox icon set generated from the approved logo source
+- Add-on icon: use the new tomato-first Firefox icon set
 - Minimum 3 screenshots, recommended 4 or 5
 - Recommended screenshot ratio: about `1.6:1`
 - Good target size: around `1280x800`
@@ -52,6 +54,13 @@ Suggested screenshot set:
 3. Task selection dropdown
 4. Statistics screen
 5. Settings screen with language option
+
+Suggested caption themes:
+
+1. Work timer with the current task and completed Pomodoro count
+2. Break and rest modes in the same timer workflow
+3. Task management with active and archived tasks
+4. Local session statistics with custom date range
 
 Rules for screenshots:
 
@@ -88,10 +97,11 @@ Their explanations must match:
 2. Choose a listed add-on submission
 3. Upload `artifacts/pomodoro-cult-firefox.xpi`
 4. Upload the source package if AMO requests it
-5. Fill in the listing fields from the docs listed above
-6. Add screenshots and icon
-7. Add reviewer notes
-8. Submit for review and signing
+5. Fill in the `en-US` listing fields from the docs listed above
+6. Add or update the Russian locale and paste the localized title, summary, description, and screenshot captions
+7. Add screenshots and the new tomato-first icon
+8. Add reviewer notes
+9. Submit for review and signing
 
 ## 6. Final checks after signing
 
@@ -104,4 +114,5 @@ After AMO signs the add-on:
    - popup opens normally
    - timer completes in the background
    - notification icon is correct
+   - localized title and description look right in `about:addons`
    - listing text and privacy links resolve correctly

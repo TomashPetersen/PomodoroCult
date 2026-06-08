@@ -141,7 +141,7 @@ const showCompletionNotification = async (
       `pomodoro-cult-${Date.now()}`,
       {
         type: 'basic',
-        iconUrl: chrome.runtime.getURL('icons/firefox-icon-128.png'),
+        iconUrl: chrome.runtime.getURL('icons/firefox-tomato-icon-128.png'),
         title,
         message
       },

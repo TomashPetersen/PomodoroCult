@@ -1,4 +1,4 @@
-import { Archive, Check, ChevronDown, Plus, X } from 'lucide-react';
+import { Archive, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
 import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 import { getTaskTitle, t } from '../lib/i18n';
@@ -11,6 +11,8 @@ export const TaskSelect = () => {
   const [open, setOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [quickTitle, setQuickTitle] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
@@ -20,6 +22,7 @@ export const TaskSelect = () => {
   const taskActionError = useAppStore((state) => state.taskActionError);
   const selectTask = useAppStore((state) => state.selectTask);
   const addTask = useAppStore((state) => state.addTask);
+  const updateTask = useAppStore((state) => state.updateTask);
   const archiveTask = useAppStore((state) => state.archiveTask);
   const clearTaskActionError = useAppStore((state) => state.clearTaskActionError);
   const taskSelectionLocked = isTimerTaskLocked(settings, timerState);
@@ -35,9 +38,11 @@ export const TaskSelect = () => {
     if (!open) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+    if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setQuickCreateOpen(false);
+        setEditingId(null);
+        setEditingTitle('');
       }
     };
 
@@ -56,6 +61,9 @@ export const TaskSelect = () => {
       setQuickCreateOpen(false);
     }
   };
+
+  const canSaveEdit =
+    editingTitle.trim().length > 0 && editingTitle.trim().length <= TASK_TITLE_MAX_LENGTH;
 
   const handleLockedClick = (event: MouseEvent) => {
     if (!taskSelectionLocked) return;
@@ -113,57 +121,129 @@ export const TaskSelect = () => {
                 const selected = task.id === timerState.activeTaskId;
                 const highlighted = task.id === highlightedTaskId;
                 const system = task.system;
+                const editing = editingId === task.id;
 
                 return (
                   <div
                     key={task.id}
                     className={cn(
-                      'group flex min-h-10 items-center gap-1 rounded-xl transition',
+                      'group flex min-h-11 items-center gap-1 rounded-xl transition',
                       selected && 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200',
                       highlighted && !selected && 'bg-rose-50/80 dark:bg-rose-500/10',
                       !selected && !highlighted && 'text-zinc-700 hover:bg-[#eef2f6] dark:text-zinc-200 dark:hover:bg-[#21262d]'
                     )}
                   >
-                    <button
-                      type="button"
-                      aria-disabled={taskSelectionLocked}
-                      onClick={async (event) => {
-                        if (taskSelectionLocked) {
-                          handleLockedClick(event);
-                          return;
-                        }
-                        await selectTask(task.id);
-                        setOpen(false);
-                      }}
-                      className={cn(
-                        'flex min-h-10 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-3 text-left text-sm transition',
-                        taskSelectionLocked && 'cursor-not-allowed'
-                      )}
-                    >
-                      <span className={cn('line-clamp-2 min-w-0 break-words leading-4', task.title.length > 24 && 'text-xs')}>
-                        {getTaskTitle(locale, task.id, task.title)}
-                      </span>
-                      {selected && <Check className="h-4 w-4 shrink-0" />}
-                    </button>
-                    {!system && (
-                      <ActionIconButton
-                        type="button"
-                        label={t(locale, 'archive')}
-                        aria-disabled={taskSelectionLocked}
-                        onClick={(event) => {
-                          if (taskSelectionLocked) {
-                            handleLockedClick(event);
-                            return;
-                          }
-                          void archiveTask(task.id);
-                        }}
-                        className={cn(
-                          'mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-[#eaeef2] hover:text-zinc-800 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
-                          taskSelectionLocked && 'cursor-not-allowed opacity-50'
+                    {editing ? (
+                      <div className="flex min-h-11 min-w-0 flex-1 items-center gap-1 px-2 py-1">
+                        <input
+                          value={editingTitle}
+                          maxLength={TASK_TITLE_MAX_LENGTH}
+                          autoFocus
+                          onChange={(event) => setEditingTitle(event.target.value)}
+                          className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-[#f0f3f6] px-2 text-sm text-zinc-950 outline-none focus:border-rose-400 dark:border-zinc-700 dark:bg-[#0d1117] dark:text-[#f0f3f6]"
+                        />
+                        <ActionIconButton
+                          type="button"
+                          label={t(locale, 'save')}
+                          tooltipAlign="center"
+                          onClick={async () => {
+                            if (!canSaveEdit) return;
+                            await updateTask(task.id, editingTitle);
+                            setEditingId(null);
+                            setEditingTitle('');
+                          }}
+                          className={cn(
+                            'grid h-8 w-8 shrink-0 place-items-center rounded-lg text-emerald-600 transition hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10',
+                            !canSaveEdit && 'cursor-not-allowed opacity-40'
+                          )}
+                        >
+                          <Check className="h-4 w-4" />
+                        </ActionIconButton>
+                        <ActionIconButton
+                          type="button"
+                          label={t(locale, 'cancel')}
+                          tooltipAlign="center"
+                          onClick={() => {
+                            setEditingId(null);
+                            setEditingTitle('');
+                          }}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eaeef2] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+                        >
+                          <X className="h-4 w-4" />
+                        </ActionIconButton>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          aria-disabled={taskSelectionLocked}
+                          onClick={async (event) => {
+                            if (taskSelectionLocked) {
+                              handleLockedClick(event);
+                              return;
+                            }
+                            await selectTask(task.id);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            'flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition',
+                            taskSelectionLocked && 'cursor-not-allowed'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'line-clamp-2 min-w-0 break-words py-0.5 leading-5',
+                              task.title.length > 24 && 'text-xs'
+                            )}
+                          >
+                            {getTaskTitle(locale, task.id, task.title)}
+                          </span>
+                          {selected && <Check className="h-4 w-4 shrink-0" />}
+                        </button>
+                        {!system && (
+                          <>
+                            <ActionIconButton
+                              type="button"
+                              label={t(locale, 'edit')}
+                              tooltipAlign="center"
+                              aria-disabled={taskSelectionLocked}
+                              onClick={(event) => {
+                                if (taskSelectionLocked) {
+                                  handleLockedClick(event);
+                                  return;
+                                }
+                                setEditingId(task.id);
+                                setEditingTitle(task.title);
+                              }}
+                              className={cn(
+                                'grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-[#eaeef2] hover:text-zinc-800 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
+                                taskSelectionLocked && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </ActionIconButton>
+                            <ActionIconButton
+                              type="button"
+                              label={t(locale, 'archive')}
+                              tooltipAlign="center"
+                              aria-disabled={taskSelectionLocked}
+                              onClick={(event) => {
+                                if (taskSelectionLocked) {
+                                  handleLockedClick(event);
+                                  return;
+                                }
+                                void archiveTask(task.id);
+                              }}
+                              className={cn(
+                                'mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-[#eaeef2] hover:text-zinc-800 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
+                                taskSelectionLocked && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <Archive className="h-4 w-4" />
+                            </ActionIconButton>
+                          </>
                         )}
-                      >
-                        <Archive className="h-4 w-4" />
-                      </ActionIconButton>
+                      </>
                     )}
                   </div>
                 );

@@ -135,7 +135,12 @@ export const TasksScreen = () => {
                     className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-[#f0f3f6] px-2 text-sm text-zinc-950 outline-none focus:border-rose-400 dark:border-zinc-700 dark:bg-[#0d1117] dark:text-[#f0f3f6]"
                   />
                 ) : (
-                  <span className={cn('line-clamp-2 min-w-0 flex-1 break-words font-medium leading-4 text-zinc-900 dark:text-zinc-100', task.title.length > 24 ? 'text-xs' : 'text-sm')}>
+                  <span
+                    className={cn(
+                      'line-clamp-2 min-w-0 flex-1 break-words py-0.5 font-medium leading-5 text-zinc-900 dark:text-zinc-100',
+                      task.title.length > 24 ? 'text-xs' : 'text-sm'
+                    )}
+                  >
                     {getTaskTitle(locale, task.id, task.title)}
                   </span>
                 )}

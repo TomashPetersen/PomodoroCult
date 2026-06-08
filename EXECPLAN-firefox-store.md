@@ -1,116 +1,148 @@
-## Purpose / Big Picture
+# Purpose / Big Picture
 
-Pomodoro Cult уже собран как отдельный Firefox-пакет, но для публикации в AMO ему нужен аккуратный публичный слой: узнаваемое лого, актуальные магазинные тексты, корректная privacy policy и воспроизводимые артефакты сборки. Пользовательский результат этой задачи простой: расширение должно выглядеть консистентно в браузере и в карточке AMO, а публикационный пакет должен быть готов к загрузке без ручной догадки по шагам.
+Pomodoro Cult already has a working Firefox build, but the publication layer is still weaker than the product itself. The current AMO listing and Firefox metadata are too quiet for the `pomodoro` search space, and the existing icon reads as a small, detail-heavy mark instead of a strong tomato-first product symbol.
+
+This ExecPlan tracks the final pre-publication polish for the **existing 1.0.1 Firefox build**. The user-facing result should be simple:
+
+- the add-on name and summary are clearer and more searchable in AMO;
+- English and Russian store copy are both publication-ready;
+- the Firefox icon looks larger, bolder, and easier to recognize in AMO and `about:addons`;
+- the packaged Firefox artifacts are ready for upload without extra guesswork.
 
 ## Progress
 
-- [2026-05-10 10:34] Начал подготовку store-пакета, подтвердил отсутствие репозиторного `PLANS.md` и решил оформить отдельный ExecPlan для логотипа и AMO-материалов.
-- [2026-05-10 10:35] Проверил текущие Firefox permission'ы (`storage`, `notifications`, `alarms`) и обнаружил, что privacy/listing docs еще описывают только `storage`.
-- [2026-05-10 10:36] Подтвердил, что пользователь передал новый logo source PNG и что текущие иконки в `public/icons/` нужно заменить без смены путей в manifest-файлах.
-- [2026-05-10 10:36] Импортировал пользовательский исходник в workspace как `assets/branding/source-logo.png`, чтобы иконки генерировались именно из присланного файла.
-- [2026-05-10 10:39] In progress: генерация нового master logo asset и замена extension icon sizes из пользовательского PNG.
-- [2026-05-10 21:08] Сгенерировал Firefox icon set из пользовательского PNG как `public/icons/firefox-icon-{16,32,48,128}.png` и переключил Firefox manifest/runtime на эти пути, чтобы не трогать Chrome-иконки.
+- [x] [2026-06-08 21:05] Re-checked current Firefox store assets, manifests, and packaging scripts. Confirmed the repository is clean and the Firefox packaging script already produces versioned `.xpi` and source archives from `package.json`.
+- [x] [2026-06-08 21:12] Verified that AMO/public strings are driven by `_locales/*/messages.json` and that Firefox uses the dedicated `firefox-icon-*` asset set from `manifest.firefox.ts`.
+- [x] [2026-06-08 21:36] Replaced the current Firefox icon system with a new tomato-first mark and regenerated `logo-master-firefox.png` plus `firefox-tomato-icon-16/32/48/128.png`.
+- [x] [2026-06-08 21:38] Rewrote AMO listing copy for `en-US` and `ru` with stronger SEO-first naming and summaries while keeping the tone practical and non-hyperbolic.
+- [x] [2026-06-08 21:39] Updated Firefox metadata strings to match the new listing naming pack for the still-unreleased `1.0.1` build.
+- [x] [2026-06-08 21:45] Rebuilt Firefox artifacts, validated localized metadata, and refreshed submission instructions for AMO panel steps.
 
 ## Surprises & Discoveries
 
-- Русские версии `docs/privacy/index.md` и `docs/amo/listing.ru.md` сейчас сохранены в битой кодировке и требуют явной нормализации.
-- Firefox runtime уже использует `notifications` и `alarms`, поэтому store/privacy-тексты должны это объяснять, иначе пакет будет выглядеть несогласованным на ревью.
-- Notification icon в Firefox берется из `icons/icon-128.png`, так что новая иконка влияет не только на toolbar и listing, но и на системные уведомления.
+- The repository already has clean UTF-8 Russian content in the relevant AMO and locale files; earlier mojibake seen in terminal output was primarily an output-encoding issue, not necessarily corrupted file contents.
+- Firefox runtime branding is independent from Chrome runtime branding because Firefox can point to its own dedicated icon filenames, so we can safely improve Firefox-first branding without touching Chrome icons.
+- The current package version is already `1.0.1`, and the user explicitly wants to keep that version number because the build has not been submitted yet.
 
 ## Decision Log
 
-- Decision: не встраивать присланный PNG "как есть", а адаптировать его под extension icon через отдельный генератор.
-  Reason: исходный файл содержит белый фон, пунктирную окружность и слишком много воздуха вокруг знака для маленьких размеров.
-- Decision: для Firefox использовать отдельные имена `firefox-icon-16/32/48/128.png`, а Chrome-иконки не трогать.
-  Reason: пользователь попросил готовить сейчас только Firefox-сборку, а существующие Chrome icon files были заблокированы локальной средой записи.
-- Decision: документировать Firefox submission flow отдельным пошаговым checklist-файлом в репозитории.
-  Reason: пользователь попросил подробную инструкцию по шагам и промо-материалам для выкладки в AMO.
+- Decision: keep the release version at `1.0.1` instead of moving to `1.0.2`.
+  Reason: the user has not published this Firefox build yet and wants the branding/SEO pass folded into the same pending release.
+- Decision: use **brand + SEO** naming instead of either a pure brand title or a hard rename.
+  Reason: this keeps Pomodoro Cult recognizable while making the add-on more legible to AMO search and search-result readers.
+- Decision: prioritize a **large tomato-first** symbol for Firefox icons.
+  Reason: the current mark has too much fine detail for small AMO cards and the Firefox extensions list.
 
 ## Outcomes & Retrospective
 
-- Ожидаемый итог: новый набор иконок отражает бренд Pomodoro Cult и читается на маленьких размерах.
-- Ожидаемый итог: Firefox listing docs, reviewer notes и privacy policy совпадают с фактическим поведением сборки.
-- Ожидаемый итог: в репозитории есть готовый checklist для AMO со списком обязательных материалов и шагов загрузки.
+- Expected outcome: the published Firefox listing will clearly read as a Pomodoro timer product even before the user opens the full page.
+- Expected outcome: the add-on icon will look stronger in search results, `about:addons`, and the toolbar.
+- Expected outcome: the repository will contain the exact copy, assets, and packaging flow needed to re-run this submission cleanly.
 
 ## Context and Orientation
 
-Файлы и модули, которые здесь важны:
+Important files for this work:
 
-- `public/icons/`: исходные PNG-иконки расширения для Chrome и Firefox.
-- `manifest.json`: Chrome manifest, использует те же icon paths.
-- `manifest.firefox.ts`: Firefox manifest, использует те же icon paths и Firefox-specific permissions.
-- `src/background-firefox.ts`: Firefox runtime, использует `icons/icon-128.png` в системных уведомлениях.
-- `docs/amo/listing.en.md`: английский store listing copy.
-- `docs/amo/listing.ru.md`: русский store listing copy.
-- `docs/amo/reviewer-note.md`: заметка для AMO reviewer.
-- `docs/amo/source-submission.md`: build/source submission instructions.
-- `docs/privacy/index.md`: privacy policy для GitHub Pages.
-- `FIREFOX.md`: локальная памятка по Firefox build/package flow.
+- `manifest.firefox.ts` - Firefox manifest and icon paths
+- `_locales/en/messages.json` - Firefox/Chrome manifest English metadata
+- `_locales/ru/messages.json` - Firefox/Chrome manifest Russian metadata
+- `docs/amo/listing.en.md` - AMO English listing source
+- `docs/amo/listing.ru.md` - AMO Russian listing source
+- `docs/amo/submission-checklist.md` - AMO upload checklist
+- `docs/amo/reviewer-note.md` - reviewer note for runtime and permissions
+- `public/icons/firefox-tomato-icon-*.png` - Firefox icon assets
+- `assets/branding/logo-master-firefox.png` - store/master branding image
+- `scripts/generate-extension-icons.ps1` - current icon generation script
+- `scripts/package-firefox-artifacts.ps1` - `.xpi` and source archive packaging
 
 ## Plan of Work
 
-1. Подготовить reproducible logo generation flow и сгенерировать чистый master asset.
-2. Заменить extension icons без смены manifest paths.
-3. Обновить Firefox store docs под реальные permissions и background behavior.
-4. Добавить пошаговую инструкцию по выкладке и промо-материалам.
-5. Собрать Chrome и Firefox артефакты, затем подготовить `.xpi` и source archive.
+1. Replace the current Firefox logo generation flow with a tomato-first branding pass that produces a bold master asset and icon sizes.
+2. Rewrite AMO copy for both locales around the same SEO spine: Pomodoro timer, tasks, statistics, Firefox, background countdown, bilingual UI.
+3. Update Firefox manifest locale strings so the add-on name/description in Firefox UI align with the listing.
+4. Refresh AMO submission notes so the panel workflow matches the new copy and icon assets.
+5. Build and package the Firefox release artifacts for the still-unreleased `1.0.1` upload.
 
 ## Concrete Steps
 
-1. Создать скрипт генерации иконок, который берет пользовательский PNG, очищает фон/пунктир и экспортирует `16/32/48/128`.
-2. Сгенерировать `public/icons/icon-16.png`, `icon-32.png`, `icon-48.png`, `icon-128.png` и сохранить master asset для дальнейших правок.
-3. Проверить, что `manifest.json`, `manifest.firefox.ts` и `src/background-firefox.ts` не требуют path changes.
-4. Исправить privacy policy и listing docs на нормальный UTF-8 и дописать explanation для `notifications` и `alarms`.
-5. Добавить новый checklist-документ по AMO submission: шаги, поля карточки, promo materials, screenshots, итоговая проверка.
-6. Выполнить `npm.cmd run build` и `npm.cmd run build:firefox`.
-7. Упаковать `dist-firefox/` в `.xpi` и собрать source archive с build instructions.
+1. Update `scripts/generate-extension-icons.ps1` so it generates a new bold tomato-first logo master and the Firefox icon set.
+2. Regenerate:
+   - `assets/branding/logo-master-firefox.png`
+   - `public/icons/firefox-tomato-icon-16.png`
+   - `public/icons/firefox-tomato-icon-32.png`
+   - `public/icons/firefox-tomato-icon-48.png`
+   - `public/icons/firefox-tomato-icon-128.png`
+3. Rewrite `docs/amo/listing.en.md` and `docs/amo/listing.ru.md` with:
+   - localized SEO title
+   - localized summary
+   - stronger first paragraph
+   - 1.0.1 release notes
+   - screenshot caption recommendations
+4. Update `_locales/en/messages.json` and `_locales/ru/messages.json` with the Firefox UI metadata strings that match the new naming pack.
+5. Refresh `docs/amo/submission-checklist.md` so it points to the updated AMO panel wording and locale workflow.
+6. Keep `manifest.firefox.ts` on version `1.0.1`.
+7. Run:
+   - `npx.cmd tsc --noEmit`
+   - `npm.cmd run build:firefox`
+   - `.\scripts\package-firefox-artifacts.ps1`
+8. Validate the unpacked Firefox build via `dist-firefox/manifest.json`.
 
 ## Validation and Acceptance
 
-Команды для проверки:
+Run:
 
 ```powershell
-npm.cmd run build
+npx.cmd tsc --noEmit
 npm.cmd run build:firefox
+.\scripts\package-firefox-artifacts.ps1
 ```
 
 Acceptance checks:
 
-- `public/icons/` содержит новый набор PNG, а manifest-пути не менялись.
-- `dist/icons/` и `dist-firefox/icons/` отражают новое лого.
-- `docs/privacy/index.md` и `docs/amo/*.md` описывают `storage`, `notifications`, `alarms` и не содержат битой кодировки.
-- В репозитории есть пошаговый Firefox submission checklist.
-- Firefox package можно собрать в `.xpi`, а source archive сопровождается build instructions.
+- Firefox build still reports version `1.0.1`.
+- `about:addons` shows the new localized title and description for `en-US` and `ru`.
+- The Firefox icon is visibly larger/bolder than the previous mark at small sizes.
+- AMO listing docs contain complete English and Russian copy ready to paste.
+- Packaged artifacts exist for the current version:
+  - `artifacts/pomodoro-cult-firefox-1.0.1.xpi`
+  - `artifacts/pomodoro-cult-firefox-source-1.0.1.zip`
 
 ## Idempotence and Recovery
 
-- Если новый логотип на 16px окажется нечитаемым, упростить внутренние детали, не меняя основную форму бренда.
-- Если AMO docs снова разойдутся с кодом, считать `manifest.firefox.ts` и `src/background-firefox.ts` источником истины по permissions/runtime behavior.
-- Если packaging flow сломается, сохранить `dist-firefox/` как source of truth и отдельно перепроверить команды из `FIREFOX.md`.
+- If the new logo reads poorly at `16px`, simplify internal shapes and regenerate the same filenames; do not change manifest paths.
+- If listing SEO wording feels too aggressive in AMO preview, keep the same title structure but soften the body copy; do not remove `Pomodoro` from the first line.
+- If packaging fails, rebuild `dist-firefox/` first and then re-run `scripts/package-firefox-artifacts.ps1`.
 
 ## Artifacts and Notes
 
-- Планируемые новые/обновленные артефакты:
-  - `public/icons/icon-16.png`
-  - `public/icons/icon-32.png`
-  - `public/icons/icon-48.png`
-  - `public/icons/icon-128.png`
-  - `assets/branding/logo-master.png`
-  - `scripts/generate-extension-icons.ps1`
-  - `docs/amo/submission-checklist.md`
-- Build artifacts после завершения:
-  - `dist-firefox/`
-  - `artifacts/pomodoro-cult-firefox.xpi`
-  - `artifacts/pomodoro-cult-firefox-source.zip`
+Expected updated artifacts:
+
+- `assets/branding/logo-master-firefox.png`
+- `public/icons/firefox-tomato-icon-16.png`
+- `public/icons/firefox-tomato-icon-32.png`
+- `public/icons/firefox-tomato-icon-48.png`
+- `public/icons/firefox-tomato-icon-128.png`
+- `docs/amo/listing.en.md`
+- `docs/amo/listing.ru.md`
+- `docs/amo/submission-checklist.md`
+- `_locales/en/messages.json`
+- `_locales/ru/messages.json`
+
+Release artifacts to verify:
+
+- `dist-firefox/`
+- `artifacts/pomodoro-cult-firefox-1.0.1.xpi`
+- `artifacts/pomodoro-cult-firefox-source-1.0.1.zip`
 
 ## Interfaces and Dependencies
 
-- Browser-facing icon interface: `manifest.json`, `manifest.firefox.ts`, `chrome.runtime.getURL('icons/icon-128.png')`
-- Store-facing docs: `docs/amo/*`, `docs/privacy/index.md`
-- Local build dependencies: `npm.cmd`, `tsc`, `vite`
+- Manifest metadata interface: `__MSG_appName__` and `__MSG_appDescription__` from `_locales/*/messages.json`
+- Firefox icon interface: `manifest.firefox.ts` -> `icons/firefox-tomato-icon-*.png`
+- Store copy sources: `docs/amo/*.md`
+- Packaging: PowerShell + `System.IO.Compression` + Firefox `dist-firefox/`
 
 ---
 
-Updated on 2026-05-10: created a dedicated ExecPlan for logo replacement and Firefox store readiness because the task crosses branding assets, Firefox packaging, and publication documentation.
+Updated on 2026-06-08: repurposed this ExecPlan from the earlier store-readiness pass into the final 1.0.1 Firefox publication polish plan, because the user confirmed the current build version should stay 1.0.1 and requested SEO copy plus a stronger tomato-first brand pass before submission.
 
-Updated on 2026-05-10: recorded that the repository now uses the user-provided `source-logo.png` as the source asset for icon generation instead of a synthetic redraw.
+Updated on 2026-06-08: completed the branding pass with a generated `logo-master-firefox.png`, switched Firefox runtime assets to `firefox-tomato-icon-*`, and finished the AMO copy refresh for the unreleased 1.0.1 build.
