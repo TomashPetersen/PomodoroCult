@@ -33,6 +33,12 @@ export const TaskSelect = () => {
   const selectedTask = sortedTasks.find((task) => task.id === timerState.activeTaskId);
   const canCreate = quickTitle.trim().length > 0 && quickTitle.trim().length <= TASK_TITLE_MAX_LENGTH;
   const lockMessage = t(locale, 'taskChangeRequiresStop');
+  const taskRelationshipLabel = taskSelectionLocked
+    ? t(locale, 'taskForCycle')
+    : t(locale, 'taskForNextCycle');
+  const selectedTaskTitle = selectedTask
+    ? getDisplayTaskTitle(locale, selectedTask)
+    : t(locale, 'noTask');
 
   useEffect(() => {
     if (!open) return;
@@ -79,24 +85,35 @@ export const TaskSelect = () => {
           setOpen((value) => !value);
         }}
         className={cn(
-          'flex h-11 w-full items-center justify-between rounded-xl border px-3 text-left text-sm transition',
+          'flex h-11 w-full items-center justify-between rounded-xl border px-3 text-left transition',
           'border-zinc-200 bg-[#fcfcfb] text-zinc-900 shadow-sm hover:border-zinc-300',
-          'dark:border-zinc-800 dark:bg-[#161b22] dark:text-zinc-100 dark:hover:border-zinc-700',
-          taskSelectionLocked && 'cursor-not-allowed'
+          'dark:border-zinc-800 dark:bg-[#161b22] dark:text-zinc-100 dark:hover:border-zinc-700'
         )}
-        aria-label={t(locale, 'taskSelect')}
+        aria-label={`${taskRelationshipLabel}: ${selectedTaskTitle}`}
       >
-        <span className={cn('truncate', !selectedTask && 'text-zinc-500 dark:text-zinc-400')}>
-          {selectedTask ? getDisplayTaskTitle(locale, selectedTask) : t(locale, 'noTask')}
+        <span className="min-w-0">
+          <span className="block truncate text-[9px] font-medium leading-3 text-zinc-500 dark:text-zinc-400">
+            {taskRelationshipLabel}
+          </span>
+          <span
+            className={cn(
+              'block truncate text-[13px] leading-4',
+              !selectedTask && 'text-zinc-500 dark:text-zinc-400'
+            )}
+          >
+            {selectedTaskTitle}
+          </span>
         </span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} />
       </button>
 
       {open && (
-        <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[21rem] overflow-hidden rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-2 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
-          <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-2 pb-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            <span>{t(locale, 'taskForCycle')}</span>
-            <span>{taskSelectionLocked ? t(locale, 'stop') : t(locale, 'taskChangeBeforeStart')}</span>
+        <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[24rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-2 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+          <div className="border-b border-zinc-200 px-2 pb-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            <span className="block leading-4">{taskRelationshipLabel}</span>
+            {!taskSelectionLocked && (
+              <span className="mt-0.5 block leading-4">{t(locale, 'taskChangeBeforeStart')}</span>
+            )}
           </div>
 
           {taskSelectionLocked && (
@@ -111,7 +128,7 @@ export const TaskSelect = () => {
             </div>
           )}
 
-          <div className="mt-2 max-h-[11rem] space-y-1 overflow-y-auto pr-1">
+          <div className="mt-2 max-h-[13.25rem] space-y-1 overflow-y-auto overflow-x-hidden pr-1">
             {sortedTasks.length === 0 ? (
               <div className="rounded-xl bg-[#f0f3f6] px-3 py-3 text-sm text-zinc-500 dark:bg-[#21262d] dark:text-zinc-400">
                 {t(locale, 'taskEmpty')}
@@ -186,7 +203,7 @@ export const TaskSelect = () => {
                             setOpen(false);
                           }}
                           className={cn(
-                            'flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition',
+                            'flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-2 pl-3 pr-2 text-left text-sm transition',
                             taskSelectionLocked && 'cursor-not-allowed'
                           )}
                         >
@@ -201,11 +218,11 @@ export const TaskSelect = () => {
                           {selected && <Check className="h-4 w-4 shrink-0" />}
                         </button>
                         {!system && (
-                          <>
+                          <div className="flex shrink-0 items-center gap-1 pr-1">
                             <ActionIconButton
                               type="button"
                               label={t(locale, 'edit')}
-                              tooltipAlign="center"
+                              tooltipAlign="right"
                               aria-disabled={taskSelectionLocked}
                               onClick={(event) => {
                                 if (taskSelectionLocked) {
@@ -225,7 +242,7 @@ export const TaskSelect = () => {
                             <ActionIconButton
                               type="button"
                               label={t(locale, 'archive')}
-                              tooltipAlign="center"
+                              tooltipAlign="right"
                               aria-disabled={taskSelectionLocked}
                               onClick={(event) => {
                                 if (taskSelectionLocked) {
@@ -235,13 +252,13 @@ export const TaskSelect = () => {
                                 void archiveTask(task.id);
                               }}
                               className={cn(
-                                'mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-[#eaeef2] hover:text-zinc-800 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
+                                'grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-[#eaeef2] hover:text-zinc-800 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
                                 taskSelectionLocked && 'cursor-not-allowed opacity-50'
                               )}
                             >
                               <Archive className="h-4 w-4" />
                             </ActionIconButton>
-                          </>
+                          </div>
                         )}
                       </>
                     )}

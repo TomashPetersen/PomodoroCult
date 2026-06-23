@@ -1,4 +1,5 @@
 export type TimerMode = 'work' | 'shortBreak' | 'longBreak';
+export type TimerLifecycleState = 'idle' | 'running' | 'paused' | 'ready';
 export type ThemeMode = 'light' | 'dark';
 export type AppScreen = 'timer' | 'tasks' | 'stats';
 export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
@@ -26,6 +27,9 @@ export interface Task {
 
 export interface TimerState {
   isRunning: boolean;
+  isPaused: boolean;
+  cycleStarted: boolean;
+  revision: number;
   currentMode: TimerMode;
   remainingSeconds: number;
   targetEndTime: number | null;

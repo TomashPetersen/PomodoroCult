@@ -1,11 +1,12 @@
 import { AlertCircle, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getTimerModeLabel, t } from '../lib/i18n';
+import { getTaskTitle, getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
 import {
   canStartTimerMode,
   formatCompactCount,
   getDurationSeconds,
+  getTimerLifecycleState,
   getTaskSessionCount,
   getRunningDisplaySeconds,
   hasStartedTimerCycle
@@ -20,6 +21,7 @@ export const TimerScreen = () => {
   const settings = useAppStore((state) => state.settings);
   const timerState = useAppStore((state) => state.timerState);
   const statistics = useAppStore((state) => state.statistics);
+  const tasks = useAppStore((state) => state.tasks);
   const selectedMode = useAppStore((state) => state.selectedTimerMode);
   const pulseStartMode = useAppStore((state) => state.pulseStartMode);
   const runtimeError = useAppStore((state) => state.runtimeError);
@@ -59,8 +61,37 @@ export const TimerScreen = () => {
   const stopDisabled = !hasStartedTimerCycle(settings, timerState);
   const startPulse = !timerState.isRunning && pulseStartMode === selectedMode;
   const showCompletedSessions = selectedMode === 'work';
+  const lifecycleState =
+    primaryActionPending === 'start'
+      ? 'running'
+      : primaryActionPending === 'pause'
+        ? 'paused'
+        : getTimerLifecycleState(settings, timerState);
+  const isViewingCurrentMode = selectedMode === timerState.currentMode;
+  const currentModeLabel = getTimerModeLabel(locale, timerState.currentMode);
+  const statusLabel = isViewingCurrentMode
+    ? lifecycleState === 'idle'
+      ? t(locale, 'timerStatusReadyToStart')
+      : lifecycleState === 'running'
+        ? t(locale, 'timerStatusRunning')
+        : lifecycleState === 'paused'
+          ? t(locale, 'timerStatusPaused')
+          : t(locale, 'timerStatusReady')
+    : lifecycleState === 'running'
+      ? t(locale, 'timerStatusRunningMode', { mode: currentModeLabel })
+      : lifecycleState === 'paused'
+        ? t(locale, 'timerStatusPausedMode', { mode: currentModeLabel })
+        : t(locale, 'timerStatusAvailableMode', { mode: currentModeLabel });
   const selectedTaskTomatoes = getTaskSessionCount(statistics, timerState.activeTaskId);
   const selectedTaskTomatoLabel = formatCompactCount(locale, selectedTaskTomatoes);
+  const selectedTask = tasks.find((task) => task.id === timerState.activeTaskId);
+  const selectedTaskTitle = selectedTask
+    ? getTaskTitle(locale, selectedTask.id, selectedTask.title)
+    : t(locale, 'noTask');
+  const tomatoAriaLabel = t(locale, 'tomatoesForTask', {
+    title: selectedTaskTitle,
+    count: selectedTaskTomatoes
+  });
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) {
@@ -112,7 +143,13 @@ export const TimerScreen = () => {
         <div className="grid grid-cols-3 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
           {tabs.map((tab) => {
             const active = selectedMode === tab.mode;
-            const running = timerState.isRunning && timerState.currentMode === tab.mode;
+            const actualMode = timerState.currentMode === tab.mode && lifecycleState !== 'idle';
+            const markerColor =
+              tab.mode === 'work'
+                ? 'text-rose-500'
+                : tab.mode === 'shortBreak'
+                  ? 'text-emerald-500'
+                  : 'text-amber-500';
 
             return (
               <button
@@ -132,8 +169,18 @@ export const TimerScreen = () => {
                 <span className="mt-1 text-[11px] leading-none opacity-80">
                   {t(locale, 'timerMinutes', { count: tab.minutes })}
                 </span>
-                {running && (
-                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500" />
+                {actualMode && (
+                  <span
+                    className={cn(
+                      'absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full',
+                      lifecycleState === 'running' &&
+                        'animate-pulse bg-current motion-reduce:animate-none',
+                      lifecycleState === 'paused' && 'bg-current',
+                      lifecycleState === 'ready' && 'border border-current',
+                      markerColor
+                    )}
+                    aria-hidden="true"
+                  />
                 )}
               </button>
             );
@@ -183,8 +230,35 @@ export const TimerScreen = () => {
           </svg>
 
           <div className="absolute inset-0 px-5 text-center">
-            <span className="absolute bottom-[calc(50%+2.9rem)] left-1/2 block -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            <span className="absolute bottom-[calc(50%+3.15rem)] left-1/2 block -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               {getTimerModeLabel(locale, displayMode)}
+            </span>
+            <span
+              role="status"
+              aria-live="polite"
+              className="absolute bottom-[calc(50%+2rem)] left-1/2 flex max-w-[11rem] -translate-x-1/2 items-center justify-center gap-1 whitespace-nowrap text-[9px] font-medium text-zinc-500 dark:text-zinc-400"
+            >
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  lifecycleState === 'running' &&
+                    'animate-pulse motion-reduce:animate-none',
+                  lifecycleState === 'running' &&
+                    timerState.currentMode === 'work' &&
+                    'bg-rose-500',
+                  lifecycleState === 'running' &&
+                    timerState.currentMode === 'shortBreak' &&
+                    'bg-emerald-500',
+                  lifecycleState === 'running' &&
+                    timerState.currentMode === 'longBreak' &&
+                    'bg-amber-500',
+                  lifecycleState === 'paused' && 'bg-amber-500',
+                  lifecycleState === 'ready' && 'border border-emerald-500',
+                  lifecycleState === 'idle' && 'border border-zinc-400'
+                )}
+                aria-hidden="true"
+              />
+              {statusLabel}
             </span>
             <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
               {formatClock(displaySeconds)}
@@ -193,9 +267,10 @@ export const TimerScreen = () => {
               <span
                 className={cn(
                   'absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-2 font-semibold tabular-nums text-white shadow-sm',
-                  selectedTaskTomatoLabel.length > 3 ? 'text-[11px]' : 'text-sm'
+                  selectedTaskTomatoLabel.length > 3 ? 'text-[10px]' : 'text-sm'
                 )}
-                title={String(selectedTaskTomatoes)}
+                title={tomatoAriaLabel}
+                aria-label={tomatoAriaLabel}
               >
                 {selectedTaskTomatoLabel}
               </span>

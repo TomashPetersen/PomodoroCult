@@ -3,6 +3,7 @@ import {
   addSessionStatistics,
   ensureNoTask,
   getDurationSeconds,
+  getNextTimerRevision,
   getRunningDisplaySeconds,
   getStartDurationSeconds,
   getStartTargetEndTime,
@@ -108,6 +109,9 @@ const buildRunningState = (
 ): TimerState => ({
   ...timerState,
   isRunning: true,
+  isPaused: false,
+  cycleStarted: true,
+  revision: getNextTimerRevision(timerState),
   currentMode: mode,
   remainingSeconds: durationSeconds,
   targetEndTime,
@@ -115,7 +119,7 @@ const buildRunningState = (
 });
 
 const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<TimerState> => {
-  const data = await initializeStorage();
+  const data = await readStoredData();
   const { settings } = data;
   let { tasks, timerState } = data;
 
@@ -179,12 +183,24 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     return timerState;
   }
 
+  if (timerState.targetEndTime && timerState.targetEndTime <= Date.now()) {
+    await stopOffscreenTimer();
+    return handleTimerCompleted({
+      mode: timerState.currentMode,
+      activeTaskId: timerState.activeTaskId,
+      durationSeconds: 0,
+      statSeconds: 0
+    });
+  }
+
   const remainingSeconds = timerState.targetEndTime
     ? getRunningDisplaySeconds(timerState.targetEndTime)
     : timerState.remainingSeconds;
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: true,
+    revision: getNextTimerRevision(timerState),
     remainingSeconds,
     targetEndTime: null
   };
@@ -195,10 +211,24 @@ const handlePauseTimer = async (): Promise<TimerState> => {
 };
 
 const handleResetTimer = async (): Promise<TimerState> => {
-  const { settings, timerState } = await readStoredData();
+  const { settings, timerState: storedTimerState } = await readStoredData();
+  const timerState =
+    storedTimerState.isRunning &&
+    storedTimerState.targetEndTime &&
+    storedTimerState.targetEndTime <= Date.now()
+      ? await handleTimerCompleted({
+          mode: storedTimerState.currentMode,
+          activeTaskId: storedTimerState.activeTaskId,
+          durationSeconds: 0,
+          statSeconds: 0
+        })
+      : storedTimerState;
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: false,
+    cycleStarted: false,
+    revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
@@ -241,6 +271,8 @@ const handleTimerCompleted = async (
     const nextState: TimerState = {
       ...timerState,
       isRunning: false,
+      isPaused: false,
+      revision: getNextTimerRevision(timerState),
       currentMode: nextMode,
       remainingSeconds: nextDuration,
       targetEndTime: null,
@@ -260,6 +292,8 @@ const handleTimerCompleted = async (
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: false,
+    revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,

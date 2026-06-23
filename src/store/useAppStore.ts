@@ -11,6 +11,7 @@ import {
   ensureNoTask,
   getDurationSeconds,
   getLocalDateKey,
+  getNextTimerRevision,
   getPresetStatsRange,
   getRunningDisplaySeconds,
   getStartDurationSeconds,
@@ -263,7 +264,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
             if (changes.timerState?.newValue) {
               const timerState = changes.timerState.newValue as TimerState;
-              patch.timerState = timerState;
+              const incomingRevision = Math.max(0, Number(timerState.revision) || 0);
+              if (incomingRevision < state.timerState.revision) {
+                return patch;
+              }
+              patch.timerState = {
+                ...timerState,
+                revision: incomingRevision
+              };
 
               if (state.timerState.currentMode !== timerState.currentMode) {
                 patch.selectedTimerMode = timerState.currentMode;
@@ -373,6 +381,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const optimisticTimerState: TimerState = {
       ...timerState,
       isRunning: true,
+      isPaused: false,
+      cycleStarted: true,
+      revision: getNextTimerRevision(timerState),
       currentMode: selectedTimerMode,
       remainingSeconds: getStartDurationSeconds(settings, timerState, selectedTimerMode),
       targetEndTime: optimisticTargetEndTime
@@ -398,7 +409,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       if (response.timerState) {
-        set({ timerState: response.timerState, selectedTimerMode: response.timerState.currentMode });
+        const responseTimerState = response.timerState;
+        set((state) =>
+          responseTimerState.revision < state.timerState.revision
+            ? {}
+            : {
+                timerState: responseTimerState,
+                selectedTimerMode: responseTimerState.currentMode
+              }
+        );
       }
     } catch (error) {
       set({
@@ -417,6 +436,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const optimisticTimerState: TimerState = {
       ...timerState,
       isRunning: false,
+      isPaused: true,
+      revision: getNextTimerRevision(timerState),
       remainingSeconds: timerState.targetEndTime
         ? getRunningDisplaySeconds(timerState.targetEndTime)
         : timerState.remainingSeconds,
@@ -436,7 +457,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       if (response.timerState) {
-        set({ timerState: response.timerState });
+        const responseTimerState = response.timerState;
+        set((state) =>
+          responseTimerState.revision < state.timerState.revision
+            ? {}
+            : { timerState: responseTimerState }
+        );
       }
     } catch (error) {
       set({
@@ -517,14 +543,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     set({
       tasks: nextTasks,
-      timerState: nextTimerState,
+      ...(shouldSelect ? { timerState: nextTimerState } : {}),
       highlightedTaskId: shouldHighlight ? task.id : null,
       taskActionError: null
     });
     if (shouldHighlight) {
       scheduleHighlightedTaskClear(set);
     }
-    await setLocal({ tasks: nextTasks, timerState: nextTimerState });
+    await setLocal(
+      shouldSelect
+        ? { tasks: nextTasks, timerState: nextTimerState }
+        : { tasks: nextTasks }
+    );
     return task.id;
   },
 
@@ -532,9 +562,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const title = clampTaskTitle(rawTitle);
     if (!title) return;
 
-    const { tasks } = get();
+    const { settings, tasks, timerState, locale } = get();
     const target = tasks.find((task) => task.id === taskId);
     if (!target || target.system || taskId === NO_TASK_ID) return;
+
+    if (isTimerTaskLocked(settings, timerState) && taskId === timerState.activeTaskId) {
+      set({ taskActionError: t(locale, 'taskChangeRequiresStop') });
+      return;
+    }
 
     if (hasActiveTaskTitle(tasks, title, taskId)) {
       set({ taskActionError: t(get().locale, 'taskDuplicateError') });
@@ -568,15 +603,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
           }
         : timerState;
 
+    const activeTaskRemoved = timerState.activeTaskId === taskId;
     set({
       tasks: nextTasks,
-      timerState: nextTimerState,
+      ...(activeTaskRemoved ? { timerState: nextTimerState } : {}),
       taskActionError: null
     });
-    await setLocal({
-      tasks: nextTasks,
-      timerState: nextTimerState
-    });
+    await setLocal(
+      activeTaskRemoved
+        ? { tasks: nextTasks, timerState: nextTimerState }
+        : { tasks: nextTasks }
+    );
   },
 
   archiveTask: async (taskId) => {
@@ -608,15 +645,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
           }
         : timerState;
 
+    const activeTaskArchived = timerState.activeTaskId === taskId;
     set({
       tasks: nextTasks,
-      timerState: nextTimerState,
+      ...(activeTaskArchived ? { timerState: nextTimerState } : {}),
       taskActionError: null
     });
-    await setLocal({
-      tasks: nextTasks,
-      timerState: nextTimerState
-    });
+    await setLocal(
+      activeTaskArchived
+        ? { tasks: nextTasks, timerState: nextTimerState }
+        : { tasks: nextTasks }
+    );
   },
 
   restoreTask: async (taskId) => {

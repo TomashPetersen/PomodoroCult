@@ -1,5 +1,6 @@
 import {
   getDurationSeconds,
+  getNextTimerRevision,
   getRunningDisplaySeconds,
   readStoredData,
   setLocal
@@ -31,6 +32,7 @@ const writeTimerState = async (patch: Partial<TimerState>): Promise<TimerState> 
   const { timerState } = await readStoredData();
   const nextState: TimerState = {
     ...timerState,
+    revision: getNextTimerRevision(timerState),
     ...patch
   };
 
@@ -96,6 +98,8 @@ const startTimer = async (payload: StartTimerPayload): Promise<void> => {
 
   await writeTimerState({
     isRunning: true,
+    isPaused: false,
+    cycleStarted: true,
     currentMode: payload.mode,
     remainingSeconds: payload.durationSeconds,
     targetEndTime,
@@ -119,6 +123,7 @@ const pauseTimer = async (): Promise<void> => {
 
   await writeTimerState({
     isRunning: false,
+    isPaused: true,
     ...(remainingSeconds !== undefined ? { remainingSeconds } : {}),
     targetEndTime: null
   });

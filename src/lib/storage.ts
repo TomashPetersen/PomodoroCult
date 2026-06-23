@@ -9,12 +9,16 @@ import {
   StoredData,
   Task,
   ThemeMode,
+  TimerLifecycleState,
   TimerMode,
   TimerState
 } from './types';
 
 export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerState => ({
   isRunning: false,
+  isPaused: false,
+  cycleStarted: false,
+  revision: 0,
   currentMode: 'work',
   remainingSeconds: settings.workTime * 60,
   targetEndTime: null,
@@ -36,6 +40,9 @@ export const getRunningDisplaySeconds = (
   if (remainingMs <= 0) return 0;
   return Math.max(0, Math.ceil(remainingMs / 1000));
 };
+
+export const getNextTimerRevision = (timerState: TimerState): number =>
+  timerState.revision + 1;
 
 export const getStartDurationSeconds = (
   settings: Settings,
@@ -84,36 +91,26 @@ export const canStartTimerMode = (
 };
 
 export const hasStartedTimerCycle = (
+  _settings: Settings,
+  timerState: TimerState
+): boolean => timerState.cycleStarted;
+
+export const getTimerLifecycleState = (
   settings: Settings,
   timerState: TimerState
-): boolean => {
-  if (timerState.isRunning) {
-    return true;
-  }
-
-  if (timerState.completedSessions > 0) {
-    return true;
-  }
-
-  if (timerState.currentMode !== 'work') {
-    return true;
-  }
-
-  return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
+): TimerLifecycleState => {
+  if (timerState.isRunning) return 'running';
+  if (!hasStartedTimerCycle(settings, timerState)) return 'idle';
+  if (timerState.isPaused) return 'paused';
+  return 'ready';
 };
 
 export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
-  if (timerState.isRunning) return true;
-  if (timerState.currentMode !== 'work') return true;
-  if (timerState.completedSessions > 0) return true;
-  return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
+  return hasStartedTimerCycle(settings, timerState);
 };
 
 export const areTimerDurationsLocked = (settings: Settings, timerState: TimerState): boolean => {
-  if (timerState.isRunning) return true;
-  if (timerState.currentMode !== 'work') return true;
-  if (timerState.completedSessions > 0) return true;
-  return timerState.remainingSeconds !== getDurationSeconds(settings, 'work');
+  return hasStartedTimerCycle(settings, timerState);
 };
 
 export const clampTaskTitle = (title: string): string =>
@@ -472,18 +469,43 @@ export const readStoredData = async (): Promise<StoredData> => {
   const stored = await getLocal<Partial<StoredData>>();
   const settings = normalizeSettings(stored.settings);
   const timerDefaults = defaultTimerState(settings);
+  const storedMode = stored.timerState?.currentMode ?? timerDefaults.currentMode;
+  const storedRemainingSeconds =
+    Number(stored.timerState?.remainingSeconds) > 0
+      ? Number(stored.timerState?.remainingSeconds)
+      : timerDefaults.remainingSeconds;
+  const storedCompletedSessions = Math.max(
+    0,
+    Number(stored.timerState?.completedSessions) || 0
+  );
+  const legacyCycleStarted =
+    Boolean(stored.timerState?.isRunning) ||
+    storedMode !== 'work' ||
+    storedCompletedSessions > 0 ||
+    storedRemainingSeconds !== getDurationSeconds(settings, 'work');
+  const legacyIsPaused =
+    !stored.timerState?.isRunning &&
+    stored.timerState?.targetEndTime == null &&
+    storedRemainingSeconds > 0 &&
+    storedRemainingSeconds < getDurationSeconds(settings, storedMode);
   const timerState: TimerState = {
     ...timerDefaults,
     ...(stored.timerState ?? {}),
-    currentMode: stored.timerState?.currentMode ?? timerDefaults.currentMode,
-    remainingSeconds:
-      Number(stored.timerState?.remainingSeconds) > 0
-        ? Number(stored.timerState?.remainingSeconds)
-        : timerDefaults.remainingSeconds,
-    completedSessions: Math.max(0, Number(stored.timerState?.completedSessions) || 0),
+    currentMode: storedMode,
+    remainingSeconds: storedRemainingSeconds,
+    completedSessions: storedCompletedSessions,
     targetEndTime: stored.timerState?.targetEndTime ?? null,
     activeTaskId: stored.timerState?.activeTaskId ?? null,
-    isRunning: Boolean(stored.timerState?.isRunning)
+    isRunning: Boolean(stored.timerState?.isRunning),
+    isPaused:
+      typeof stored.timerState?.isPaused === 'boolean'
+        ? stored.timerState.isPaused
+        : legacyIsPaused,
+    revision: Math.max(0, Number(stored.timerState?.revision) || 0),
+    cycleStarted:
+      typeof stored.timerState?.cycleStarted === 'boolean'
+        ? stored.timerState.cycleStarted
+        : legacyCycleStarted
   };
 
   return {

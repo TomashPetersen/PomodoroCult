@@ -188,12 +188,20 @@ export const TasksScreen = () => {
                         type="button"
                         label={t(locale, 'edit')}
                         tooltipSide="bottom"
+                        aria-disabled={selectedTaskInCycle}
                         onClick={() => {
+                          if (selectedTaskInCycle) {
+                            void updateTask(task.id, task.title);
+                            return;
+                          }
                           clearTaskActionError();
                           setEditingId(task.id);
                           setEditingTitle(task.title);
                         }}
-                        className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+                        className={cn(
+                          'grid h-8 w-8 place-items-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white',
+                          selectedTaskInCycle && 'cursor-not-allowed opacity-50'
+                        )}
                       >
                         <Pencil className="h-4 w-4" />
                       </ActionIconButton>

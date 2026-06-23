@@ -10,10 +10,10 @@ import {
   addSessionStatistics,
   ensureNoTask,
   getDurationSeconds,
+  getNextTimerRevision,
   getRunningDisplaySeconds,
   getStartDurationSeconds,
   getStartTargetEndTime,
-  initializeStorage,
   readStoredData,
   setLocal,
   sortTasks
@@ -25,6 +25,16 @@ const COMPLETION_NOTIFICATION_DELAY_MS = 500;
 
 let completionInFlight: Promise<void> | null = null;
 let lastCompletedKey: string | null = null;
+let timerOperationQueue: Promise<void> = Promise.resolve();
+
+const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = timerOperationQueue.then(operation, operation);
+  timerOperationQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+};
 
 (
   globalThis as typeof globalThis & {
@@ -166,6 +176,9 @@ const buildRunningState = (
 ): TimerState => ({
   ...timerState,
   isRunning: true,
+  isPaused: false,
+  cycleStarted: true,
+  revision: getNextTimerRevision(timerState),
   currentMode: mode,
   remainingSeconds: durationSeconds,
   targetEndTime,
@@ -173,7 +186,7 @@ const buildRunningState = (
 });
 
 const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<TimerState> => {
-  const data = await initializeStorage();
+  const data = await readStoredData();
   const { settings } = data;
   let { tasks, timerState } = data;
 
@@ -230,12 +243,22 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     return timerState;
   }
 
+  if (timerState.targetEndTime && timerState.targetEndTime <= Date.now()) {
+    await clearAlarm();
+    return handleTimerCompleted({
+      ...timerState,
+      remainingSeconds: 0
+    });
+  }
+
   const remainingSeconds = timerState.targetEndTime
     ? getRunningDisplaySeconds(timerState.targetEndTime)
     : timerState.remainingSeconds;
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: true,
+    revision: getNextTimerRevision(timerState),
     remainingSeconds,
     targetEndTime: null
   };
@@ -246,10 +269,22 @@ const handlePauseTimer = async (): Promise<TimerState> => {
 };
 
 const handleResetTimer = async (): Promise<TimerState> => {
-  const { settings, timerState } = await readStoredData();
+  const { settings, timerState: storedTimerState } = await readStoredData();
+  const timerState =
+    storedTimerState.isRunning &&
+    storedTimerState.targetEndTime &&
+    storedTimerState.targetEndTime <= Date.now()
+      ? await handleTimerCompleted({
+          ...storedTimerState,
+          remainingSeconds: 0
+        })
+      : storedTimerState;
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: false,
+    cycleStarted: false,
+    revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
@@ -290,6 +325,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     const nextState: TimerState = {
       ...timerState,
       isRunning: false,
+      isPaused: false,
+      revision: getNextTimerRevision(timerState),
       currentMode: nextMode,
       remainingSeconds: nextDuration,
       targetEndTime: null,
@@ -309,6 +346,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
+    isPaused: false,
+    revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
@@ -320,36 +359,43 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
 };
 
 const completeExpiredTimer = async (): Promise<void> => {
-  const { timerState } = await readStoredData();
-
-  if (!timerState.isRunning || !timerState.targetEndTime) {
-    await clearAlarm();
-    return;
-  }
-
-  if (timerState.targetEndTime > Date.now()) {
-    await createAlarm(timerState.targetEndTime);
-    return;
-  }
-  const completionKey = `${timerState.currentMode}:${timerState.targetEndTime}:${timerState.completedSessions}`;
-
-  if (lastCompletedKey === completionKey) {
-    await clearAlarm();
-    return;
-  }
-
   if (completionInFlight) {
     await completionInFlight;
     return;
   }
 
   completionInFlight = (async () => {
-    await clearAlarm();
-    const completedMode = timerState.currentMode;
-    const completedState = await handleTimerCompleted({
-      ...timerState,
-      remainingSeconds: 0
+    const completion = await enqueueTimerOperation(async () => {
+      const { timerState } = await readStoredData();
+
+      if (!timerState.isRunning || !timerState.targetEndTime) {
+        await clearAlarm();
+        return null;
+      }
+
+      if (timerState.targetEndTime > Date.now()) {
+        await createAlarm(timerState.targetEndTime);
+        return null;
+      }
+
+      const completionKey = `${timerState.currentMode}:${timerState.targetEndTime}:${timerState.completedSessions}`;
+      if (lastCompletedKey === completionKey) {
+        await clearAlarm();
+        return null;
+      }
+
+      await clearAlarm();
+      const completedMode = timerState.currentMode;
+      const completedState = await handleTimerCompleted({
+        ...timerState,
+        remainingSeconds: 0
+      });
+      lastCompletedKey = completionKey;
+
+      return { completedMode, completedState };
     });
+
+    if (!completion) return;
 
     try {
       await playCompletionChime();
@@ -363,8 +409,10 @@ const completeExpiredTimer = async (): Promise<void> => {
     }
 
     await delay(COMPLETION_NOTIFICATION_DELAY_MS);
-    await showCompletionNotification(completedMode, completedState.currentMode);
-    lastCompletedKey = completionKey;
+    await showCompletionNotification(
+      completion.completedMode,
+      completion.completedState.currentMode
+    );
   })();
 
   try {
@@ -375,7 +423,7 @@ const completeExpiredTimer = async (): Promise<void> => {
 };
 
 const resumeRunningTimer = async (): Promise<void> => {
-  const { timerState } = await initializeStorage();
+  const { timerState } = await readStoredData();
 
   if (!timerState.isRunning || !timerState.targetEndTime) {
     await clearAlarm();
@@ -419,14 +467,22 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
       case 'POPUP_START_TIMER':
         sendResponse({
           ok: true,
-          timerState: await handleStartTimer(message.payload.mode, message.payload.startedAt)
+          timerState: await enqueueTimerOperation(() =>
+            handleStartTimer(message.payload.mode, message.payload.startedAt)
+          )
         });
         return;
       case 'POPUP_PAUSE_TIMER':
-        sendResponse({ ok: true, timerState: await handlePauseTimer() });
+        sendResponse({
+          ok: true,
+          timerState: await enqueueTimerOperation(handlePauseTimer)
+        });
         return;
       case 'POPUP_RESET_TIMER':
-        sendResponse({ ok: true, timerState: await handleResetTimer() });
+        sendResponse({
+          ok: true,
+          timerState: await enqueueTimerOperation(handleResetTimer)
+        });
         return;
       default:
         sendResponse({ ok: true, ignored: true });
