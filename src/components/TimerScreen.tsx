@@ -15,6 +15,7 @@ import { cn } from '../lib/ui';
 import { TimerMode } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 import { TaskSelect } from './TaskSelect';
+import { TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 
 export const TimerScreen = () => {
   const locale = useAppStore((state) => state.locale);
@@ -92,6 +93,7 @@ export const TimerScreen = () => {
     title: selectedTaskTitle,
     count: selectedTaskTomatoes
   });
+  const tomatoTooltipMaxWidth = `min(${TASK_TITLE_MAX_LENGTH + 24}ch, calc(100vw - 2rem))`;
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) {
@@ -266,13 +268,24 @@ export const TimerScreen = () => {
             {showCompletedSessions && (
               <span
                 className={cn(
-                  'absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex h-10 min-w-10 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 px-2 font-semibold tabular-nums text-white shadow-sm',
+                  'group/tomato absolute left-1/2 top-[calc(50%+3.35rem)] inline-flex h-10 min-w-10 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full bg-rose-500 px-2 font-semibold tabular-nums text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f7fa] dark:focus-visible:ring-offset-[#0b0f14]',
                   selectedTaskTomatoLabel.length > 3 ? 'text-[10px]' : 'text-sm'
                 )}
-                title={tomatoAriaLabel}
                 aria-label={tomatoAriaLabel}
+                tabIndex={0}
               >
                 {selectedTaskTomatoLabel}
+                <span
+                  className={cn(
+                    'pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-40 hidden -translate-x-1/2 overflow-hidden text-ellipsis whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium leading-none shadow-soft',
+                    'border-zinc-200 bg-[#fcfcfb] text-zinc-700 dark:border-[#30363d] dark:bg-[#24292f] dark:text-[#f0f3f6]',
+                    'group-hover/tomato:block group-focus-visible/tomato:block'
+                  )}
+                  style={{ maxWidth: tomatoTooltipMaxWidth }}
+                  role="tooltip"
+                >
+                  {tomatoAriaLabel}
+                </span>
               </span>
             )}
           </div>

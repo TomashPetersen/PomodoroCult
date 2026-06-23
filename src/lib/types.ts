@@ -6,6 +6,8 @@ export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 export type Locale = 'ru' | 'en';
 export type LanguagePreference = 'auto' | Locale;
 
+export const CURRENT_STORAGE_VERSION = 1;
+
 export interface Settings {
   workTime: number;
   shortBreak: number;
@@ -55,11 +57,30 @@ export interface DailyStatistics {
 export type Statistics = Record<string, DailyStatistics>;
 
 export interface StoredData {
+  storageVersion: number;
   settings: Settings;
   tasks: Task[];
   timerState: TimerState;
   statistics: Statistics;
   theme: ThemeMode;
+}
+
+export interface MigrationBackup {
+  createdAt: number;
+  fromVersion: number;
+  toVersion: number;
+  data: unknown;
+}
+
+export interface PersistedStorage extends StoredData {
+  migrationBackup?: MigrationBackup | null;
+}
+
+export interface ExportedDataDocument {
+  app: 'Pomodoro Cult';
+  exportedAt: string;
+  storageVersion: number;
+  data: StoredData;
 }
 
 export interface StartTimerPayload {
@@ -98,9 +119,11 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const STORAGE_KEYS = {
+  storageVersion: 'storageVersion',
   settings: 'settings',
   tasks: 'tasks',
   timerState: 'timerState',
   statistics: 'statistics',
-  theme: 'theme'
+  theme: 'theme',
+  migrationBackup: 'migrationBackup'
 } as const;

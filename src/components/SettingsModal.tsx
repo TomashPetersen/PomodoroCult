@@ -1,5 +1,5 @@
-import { Minus, Plus, Save, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Download, Minus, Plus, Save, Upload, X } from 'lucide-react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { SETTINGS_FIELDS } from '../lib/constants';
 import { getLanguagePreferenceLabel, getSettingLabel, t } from '../lib/i18n';
 import { areTimerDurationsLocked } from '../lib/storage';
@@ -36,8 +36,15 @@ export const SettingsModal = () => {
   const timerState = useAppStore((state) => state.timerState);
   const closeSettings = useAppStore((state) => state.closeSettings);
   const saveSettings = useAppStore((state) => state.saveSettings);
+  const exportUserData = useAppStore((state) => state.exportUserData);
+  const importUserData = useAppStore((state) => state.importUserData);
+  const clearDataTransferStatus = useAppStore((state) => state.clearDataTransferStatus);
+  const dataTransferMessage = useAppStore((state) => state.dataTransferMessage);
+  const dataTransferError = useAppStore((state) => state.dataTransferError);
   const [draftValues, setDraftValues] = useState<DraftValues>(() => toDraftValues(settings));
   const [draftLanguage, setDraftLanguage] = useState<LanguagePreference>(settings.languagePreference);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const timerDurationsLocked = areTimerDurationsLocked(settings, timerState);
   const timerDurationsLockedMessage = t(locale, 'settingDurationLocked');
   const languageOptions: LanguagePreference[] = ['auto', 'ru', 'en'];
@@ -47,7 +54,13 @@ export const SettingsModal = () => {
 
     setDraftValues(toDraftValues(settings));
     setDraftLanguage(settings.languagePreference);
+    setExportMenuOpen(false);
   }, [open, settings]);
+
+  useEffect(() => {
+    if (!open) return;
+    clearDataTransferStatus();
+  }, [clearDataTransferStatus, open]);
 
   const validation = useMemo(() => {
     const result = new Map<SettingKey, { value: number | null; valid: boolean }>();
@@ -107,23 +120,63 @@ export const SettingsModal = () => {
       nextSettings!.languagePreference !== settings.languagePreference);
   const canSave = Boolean(nextSettings) && dirty;
 
+  const handleImportFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      void importUserData(reader.result);
+    };
+    reader.onerror = () => {
+      void importUserData('');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExportBackup = async () => {
+    await exportUserData();
+    setExportMenuOpen(false);
+  };
+
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#f6f8fa]/82 p-5 backdrop-blur-md dark:bg-[#0f141a]/82">
-      <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
-        <div className="mb-4 flex items-center justify-between">
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#f6f8fa]/82 p-4 backdrop-blur-md dark:bg-[#0f141a]/82">
+      <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+        <div className="mb-2 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'settings')}</h2>
-          <button
-            type="button"
-            onClick={closeSettings}
-            className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-            aria-label={t(locale, 'close')}
-            title={t(locale, 'close')}
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen(true)}
+              className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+              aria-label={t(locale, 'openDataMenu')}
+              title={t(locale, 'openDataMenu')}
+            >
+              <Upload className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={closeSettings}
+              className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+              aria-label={t(locale, 'close')}
+              title={t(locale, 'close')}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+
           {SETTINGS_FIELDS.map((field) => {
             const locked = field.key !== 'longBreakInterval' && timerDurationsLocked;
             const invalid = !validation.get(field.key)?.valid;
@@ -141,13 +194,13 @@ export const SettingsModal = () => {
                     {getSettingLabel(locale, field.key)}
                   </span>
 
-                  <div className={cn('flex h-9 shrink-0 items-center rounded-lg border bg-[#fcfcfb] dark:bg-[#0d1117]', invalid ? 'border-rose-300 dark:border-rose-500/60' : 'border-zinc-200 dark:border-zinc-700')}>
+                  <div className={cn('flex h-8 shrink-0 items-center rounded-lg border bg-[#fcfcfb] dark:bg-[#0d1117]', invalid ? 'border-rose-300 dark:border-rose-500/60' : 'border-zinc-200 dark:border-zinc-700')}>
                     <button
                       type="button"
                       disabled={locked}
                       onClick={() => stepValue(field.key, -1)}
                       className={cn(
-                        'grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
+                        'grid h-8 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
                         locked && 'cursor-not-allowed opacity-50'
                       )}
                       aria-label={t(locale, 'decrease')}
@@ -163,14 +216,14 @@ export const SettingsModal = () => {
                       onBlur={() => clampDraft(field.key)}
                       onChange={(event) => setValue(field.key, event.target.value)}
                       title={locked ? timerDurationsLockedMessage : undefined}
-                      className="h-9 w-16 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none disabled:cursor-not-allowed dark:text-white"
+                      className="h-8 w-16 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none disabled:cursor-not-allowed dark:text-white"
                     />
                     <button
                       type="button"
                       disabled={locked}
                       onClick={() => stepValue(field.key, 1)}
                       className={cn(
-                        'grid h-9 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
+                        'grid h-8 w-9 place-items-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white',
                         locked && 'cursor-not-allowed opacity-50'
                       )}
                       aria-label={t(locale, 'increase')}
@@ -185,18 +238,23 @@ export const SettingsModal = () => {
                     {t(locale, 'settingInvalidValue', { min: field.min, max: field.max })}
                   </p>
                 )}
+                {field.key === 'longBreakInterval' && timerDurationsLocked && (
+                  <p className="mt-0.5 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
+                    {t(locale, 'settingIntervalAppliesAfterCurrentTimer')}
+                  </p>
+                )}
               </label>
             );
           })}
 
           {timerDurationsLocked && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               {timerDurationsLockedMessage}
             </div>
           )}
 
-          <div className="rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-3 dark:border-zinc-800 dark:bg-[#21262d]">
-            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          <div className="rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-2 dark:border-zinc-800 dark:bg-[#21262d]">
+            <p className="mb-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
               {t(locale, 'settingLanguage')}
             </p>
             <div className="grid grid-cols-3 rounded-lg bg-[#fcfcfb] p-1 dark:bg-[#0d1117]">
@@ -209,7 +267,7 @@ export const SettingsModal = () => {
                     type="button"
                     onClick={() => setDraftLanguage(option)}
                     className={cn(
-                      'h-9 rounded-md px-2 text-xs font-medium transition',
+                      'h-8 rounded-md px-2 text-xs font-medium transition',
                       active
                         ? 'bg-[#24292f] text-[#f6f8fa] dark:bg-[#f0f3f6] dark:text-[#161b22]'
                         : 'text-zinc-600 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-[#f0f3f6]'
@@ -221,6 +279,19 @@ export const SettingsModal = () => {
               })}
             </div>
           </div>
+
+          {(dataTransferMessage || dataTransferError) && (
+            <p
+              className={cn(
+                'rounded-xl px-3 py-2 text-xs leading-4',
+                dataTransferError
+                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-200'
+                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+              )}
+            >
+              {dataTransferError ?? dataTransferMessage}
+            </p>
+          )}
         </div>
 
         <button
@@ -231,7 +302,7 @@ export const SettingsModal = () => {
             void saveSettings(nextSettings);
           }}
           className={cn(
-            'mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f]',
+            'mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f]',
             'disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]'
           )}
         >
@@ -239,6 +310,72 @@ export const SettingsModal = () => {
           {t(locale, 'save')}
         </button>
       </div>
+
+      {exportMenuOpen && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[#f6f8fa]/65 p-6 backdrop-blur-sm dark:bg-[#0d1117]/65"
+          onPointerDown={() => setExportMenuOpen(false)}
+        >
+          <div
+            className="w-full max-w-[19rem] rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-zinc-950 dark:text-white">
+                {t(locale, 'dataMenuTitle')}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+                aria-label={t(locale, 'close')}
+                title={t(locale, 'close')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleExportBackup()}
+              className="flex w-full items-start gap-3 rounded-xl border border-zinc-200 bg-[#f0f3f6] p-3 text-left transition hover:border-zinc-300 hover:bg-[#eef2f6] dark:border-zinc-800 dark:bg-[#21262d] dark:hover:bg-[#30363d]"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#fcfcfb] text-zinc-800 dark:bg-[#0d1117] dark:text-[#f0f3f6]">
+                <Download className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-zinc-900 dark:text-white">
+                  {t(locale, 'exportFullBackup')}
+                </span>
+                <span className="mt-1 block text-xs leading-4 text-zinc-500 dark:text-zinc-400">
+                  {t(locale, 'exportFullBackupDescription')}
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setExportMenuOpen(false);
+                importInputRef.current?.click();
+              }}
+              className="mt-2 flex w-full items-start gap-3 rounded-xl border border-zinc-200 bg-[#f0f3f6] p-3 text-left transition hover:border-zinc-300 hover:bg-[#eef2f6] dark:border-zinc-800 dark:bg-[#21262d] dark:hover:bg-[#30363d]"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#fcfcfb] text-zinc-800 dark:bg-[#0d1117] dark:text-[#f0f3f6]">
+                <Upload className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-zinc-900 dark:text-white">
+                  {t(locale, 'importBackup')}
+                </span>
+                <span className="mt-1 block text-xs leading-4 text-zinc-500 dark:text-zinc-400">
+                  {t(locale, 'importBackupDescription')}
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

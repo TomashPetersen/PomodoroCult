@@ -1,9 +1,13 @@
 import { NO_TASK_ID, SETTINGS_FIELDS, TASK_TITLE_MAX_LENGTH } from './constants';
 import { getTaskTitle } from './i18n';
 import {
+  CURRENT_STORAGE_VERSION,
   DEFAULT_SETTINGS,
   DailyStatistics,
+  ExportedDataDocument,
   Locale,
+  MigrationBackup,
+  PersistedStorage,
   Settings,
   Statistics,
   StoredData,
@@ -25,6 +29,13 @@ export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerS
   activeTaskId: null,
   completedSessions: 0
 });
+
+const LEGACY_STORAGE_VERSION = 0;
+
+const getStoredVersion = (value: unknown): number => {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : LEGACY_STORAGE_VERSION;
+};
 
 export const getDurationSeconds = (settings: Settings, mode: TimerMode): number => {
   if (mode === 'work') return settings.workTime * 60;
@@ -171,9 +182,16 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
   const seen = new Set<string>();
   const normalized: Task[] = [];
 
-  for (const task of tasks ?? []) {
-    const title = clampTaskTitle(task.title);
-    const id = task.id === NO_TASK_ID || task.system ? NO_TASK_ID : task.id || createId();
+  if (!Array.isArray(tasks)) {
+    return [];
+  }
+
+  for (const task of tasks) {
+    if (!task || typeof task !== 'object') continue;
+
+    const title = clampTaskTitle(typeof task.title === 'string' ? task.title : '');
+    const rawId = typeof task.id === 'string' ? task.id : '';
+    const id = rawId === NO_TASK_ID || task.system ? NO_TASK_ID : rawId || createId();
 
     if (id !== NO_TASK_ID && !title) continue;
     if (seen.has(id)) continue;
@@ -197,6 +215,14 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
   }
 
   return normalized.sort(sortTasksByUse);
+};
+
+export const normalizeStatistics = (statistics?: Statistics): Statistics => {
+  if (!statistics || typeof statistics !== 'object' || Array.isArray(statistics)) {
+    return {};
+  }
+
+  return statistics;
 };
 
 export const ensureNoTask = (tasks: Task[]): Task[] => {
@@ -431,7 +457,7 @@ export const addSessionStatistics = (
 export const hasChromeStorage = (): boolean =>
   typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
 
-const getLocal = <T extends Partial<StoredData>>(keys?: string[] | null): Promise<T> =>
+const getLocal = <T extends Partial<PersistedStorage>>(keys?: string[] | null): Promise<T> =>
   new Promise((resolve, reject) => {
     if (!hasChromeStorage()) {
       resolve({} as T);
@@ -448,7 +474,7 @@ const getLocal = <T extends Partial<StoredData>>(keys?: string[] | null): Promis
     });
   });
 
-export const setLocal = (value: Partial<StoredData>): Promise<void> =>
+export const setLocal = (value: Partial<PersistedStorage>): Promise<void> =>
   new Promise((resolve, reject) => {
     if (!hasChromeStorage()) {
       resolve();
@@ -465,8 +491,7 @@ export const setLocal = (value: Partial<StoredData>): Promise<void> =>
     });
   });
 
-export const readStoredData = async (): Promise<StoredData> => {
-  const stored = await getLocal<Partial<StoredData>>();
+export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): StoredData => {
   const settings = normalizeSettings(stored.settings);
   const timerDefaults = defaultTimerState(settings);
   const storedMode = stored.timerState?.currentMode ?? timerDefaults.currentMode;
@@ -509,17 +534,106 @@ export const readStoredData = async (): Promise<StoredData> => {
   };
 
   return {
+    storageVersion: CURRENT_STORAGE_VERSION,
     settings,
     tasks: normalizeTasks(stored.tasks),
     timerState,
-    statistics: stored.statistics ?? {},
+    statistics: normalizeStatistics(stored.statistics),
     theme: stored.theme === 'dark' ? 'dark' : 'light'
   };
 };
 
+export const createMigrationBackup = (
+  stored: Partial<PersistedStorage>,
+  toVersion = CURRENT_STORAGE_VERSION
+): MigrationBackup => ({
+  createdAt: Date.now(),
+  fromVersion: getStoredVersion(stored.storageVersion),
+  toVersion,
+  data: stored
+});
+
+export const migrateStoredData = (
+  stored: Partial<PersistedStorage> = {}
+): { data: StoredData; backup: MigrationBackup | null; migrated: boolean } => {
+  const fromVersion = getStoredVersion(stored.storageVersion);
+  const data = normalizeStoredData(stored);
+  const migrated = fromVersion < CURRENT_STORAGE_VERSION;
+
+  return {
+    data,
+    backup: migrated ? createMigrationBackup(stored) : null,
+    migrated
+  };
+};
+
+export const readStoredData = async (): Promise<StoredData> => {
+  const stored = await getLocal<Partial<PersistedStorage>>();
+  return migrateStoredData(stored).data;
+};
+
 export const initializeStorage = async (): Promise<StoredData> => {
+  const stored = await getLocal<Partial<PersistedStorage>>();
+  const { data, backup } = migrateStoredData(stored);
+  await setLocal(backup ? { ...data, migrationBackup: backup } : data);
+  return data;
+};
+
+const getSafeImportedTimerState = (data: StoredData): TimerState => ({
+  ...defaultTimerState(data.settings),
+  activeTaskId: data.timerState.activeTaskId
+});
+
+export const createExportDocument = async (): Promise<ExportedDataDocument> => {
   const data = await readStoredData();
-  await setLocal(data);
+
+  return {
+    app: 'Pomodoro Cult',
+    exportedAt: new Date().toISOString(),
+    storageVersion: CURRENT_STORAGE_VERSION,
+    data
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const hasImportableStorageKey = (value: Record<string, unknown>): boolean =>
+  'settings' in value ||
+  'tasks' in value ||
+  'timerState' in value ||
+  'statistics' in value ||
+  'theme' in value;
+
+export const parseExportDocument = (raw: string): StoredData => {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!isRecord(parsed)) {
+    throw new Error('Invalid backup format.');
+  }
+
+  const candidate =
+    'data' in parsed &&
+    isRecord(parsed.data)
+      ? parsed.data
+      : parsed;
+
+  if (!isRecord(candidate) || !hasImportableStorageKey(candidate)) {
+    throw new Error('Invalid backup format.');
+  }
+
+  const data = normalizeStoredData(candidate as Partial<PersistedStorage>);
+
+  return {
+    ...data,
+    timerState: getSafeImportedTimerState(data)
+  };
+};
+
+export const importStoredData = async (raw: string): Promise<StoredData> => {
+  const current = await getLocal<Partial<PersistedStorage>>();
+  const backup = createMigrationBackup(current, CURRENT_STORAGE_VERSION);
+  const data = parseExportDocument(raw);
+  await setLocal({ ...data, migrationBackup: backup });
   return data;
 };
 

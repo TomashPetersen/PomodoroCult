@@ -7,6 +7,7 @@ import {
   canStartTimerMode,
   clampTaskTitle,
   createTask,
+  createExportDocument,
   defaultTimerState,
   ensureNoTask,
   getDurationSeconds,
@@ -19,6 +20,7 @@ import {
   hasStartedTimerCycle,
   hasActiveTaskTitle,
   initializeStorage,
+  importStoredData,
   isTimerTaskLocked,
   normalizeSettings,
   removeTaskStatistics,
@@ -27,6 +29,7 @@ import {
 } from '../lib/storage';
 import {
   AppScreen,
+  CURRENT_STORAGE_VERSION,
   DEFAULT_SETTINGS,
   Locale,
   RuntimeMessage,
@@ -67,6 +70,8 @@ interface AppStore extends StoredData {
   settingsOpen: boolean;
   taskActionError: string | null;
   highlightedTaskId: string | null;
+  dataTransferMessage: string | null;
+  dataTransferError: string | null;
   initialize: () => Promise<void>;
   setScreen: (screen: AppScreen) => void;
   setTimerMode: (mode: TimerMode) => void;
@@ -76,6 +81,9 @@ interface AppStore extends StoredData {
   openSettings: () => void;
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
+  exportUserData: () => Promise<void>;
+  importUserData: (raw: string) => Promise<void>;
+  clearDataTransferStatus: () => void;
   startTimer: (startedAt?: number) => Promise<void>;
   pauseTimer: () => Promise<void>;
   openResetConfirm: () => void;
@@ -177,6 +185,7 @@ const primeFirefoxBackgroundAudio = async (): Promise<void> => {
 };
 
 const initialData: StoredData = {
+  storageVersion: CURRENT_STORAGE_VERSION,
   settings: DEFAULT_SETTINGS,
   tasks: [],
   timerState: defaultTimerState(DEFAULT_SETTINGS),
@@ -221,6 +230,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settingsOpen: false,
   taskActionError: null,
   highlightedTaskId: null,
+  dataTransferMessage: null,
+  dataTransferError: null,
 
   initialize: async () => {
     try {
@@ -365,6 +376,71 @@ export const useAppStore = create<AppStore>((set, get) => ({
       timerState: nextTimerState
     });
   },
+
+  exportUserData: async () => {
+    try {
+      const document = await createExportDocument();
+      const blob = new Blob([JSON.stringify(document, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+
+      anchor.href = url;
+      anchor.download = `pomodoro-cult-backup-${date}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+
+      set({
+        dataTransferMessage: t(get().locale, 'dataExportSuccess'),
+        dataTransferError: null
+      });
+    } catch (error) {
+      set({
+        dataTransferMessage: null,
+        dataTransferError: getActionError(error, t(get().locale, 'dataExportError'))
+      });
+    }
+  },
+
+  importUserData: async (raw) => {
+    const { locale } = get();
+
+    try {
+      const data = await importStoredData(raw);
+
+      try {
+        await sendRuntimeMessage({ type: 'POPUP_RESET_TIMER' });
+      } catch {
+        // Import already writes a safe idle state; runtime reset only clears pending alarms when available.
+      }
+
+      const nextLocale = resolveLocale(data.settings.languagePreference);
+      applyThemeClass(data.theme);
+
+      set({
+        ...data,
+        locale: nextLocale,
+        selectedTimerMode: data.timerState.currentMode,
+        resetConfirmOpen: false,
+        runtimeError: null,
+        dataTransferMessage: t(nextLocale, 'dataImportSuccess'),
+        dataTransferError: null
+      });
+    } catch (error) {
+      set({
+        dataTransferMessage: null,
+        dataTransferError: getActionError(error, t(locale, 'dataImportError'))
+      });
+    }
+  },
+
+  clearDataTransferStatus: () =>
+    set({
+      dataTransferMessage: null,
+      dataTransferError: null
+    }),
 
   startTimer: async (startedAt = Date.now()) => {
     const { selectedTimerMode, locale, timerState, settings } = get();
