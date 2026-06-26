@@ -1,4 +1,10 @@
-import { NO_TASK_ID, SETTINGS_FIELDS, TASK_TITLE_MAX_LENGTH } from './constants';
+import {
+  FOCUS_MUSIC_TRACKS,
+  FOCUS_MUSIC_VOLUME,
+  NO_TASK_ID,
+  SETTINGS_FIELDS,
+  TASK_TITLE_MAX_LENGTH
+} from './constants';
 import { getTaskTitle } from './i18n';
 import {
   CURRENT_STORAGE_VERSION,
@@ -167,16 +173,33 @@ const normalizeSettingNumber = (settings: Partial<Settings> | undefined, key: Nu
   return Math.max(field.min, Math.min(field.max, Number.isFinite(value) ? value : DEFAULT_SETTINGS[key]));
 };
 
-export const normalizeSettings = (settings?: Partial<Settings>): Settings => ({
-  workTime: normalizeSettingNumber(settings, 'workTime'),
-  shortBreak: normalizeSettingNumber(settings, 'shortBreak'),
-  longBreak: normalizeSettingNumber(settings, 'longBreak'),
-  longBreakInterval: normalizeSettingNumber(settings, 'longBreakInterval'),
-  languagePreference:
-    settings?.languagePreference === 'ru' || settings?.languagePreference === 'en'
-      ? settings.languagePreference
-      : 'auto'
-});
+export const normalizeSettings = (settings?: Partial<Settings>): Settings => {
+  const focusMusicTrack = settings?.focusMusicTrack;
+
+  return {
+    workTime: normalizeSettingNumber(settings, 'workTime'),
+    shortBreak: normalizeSettingNumber(settings, 'shortBreak'),
+    longBreak: normalizeSettingNumber(settings, 'longBreak'),
+    longBreakInterval: normalizeSettingNumber(settings, 'longBreakInterval'),
+    languagePreference:
+      settings?.languagePreference === 'ru' || settings?.languagePreference === 'en'
+        ? settings.languagePreference
+        : 'auto',
+    focusMusicEnabled: Boolean(settings?.focusMusicEnabled),
+    focusMusicVolume: Math.max(
+      FOCUS_MUSIC_VOLUME.min,
+      Math.min(
+        FOCUS_MUSIC_VOLUME.max,
+        Number.isFinite(Number(settings?.focusMusicVolume))
+          ? Number(settings?.focusMusicVolume)
+          : DEFAULT_SETTINGS.focusMusicVolume
+      )
+    ),
+    focusMusicTrack: FOCUS_MUSIC_TRACKS.some((track) => track.id === focusMusicTrack)
+      ? focusMusicTrack!
+      : DEFAULT_SETTINGS.focusMusicTrack
+  };
+};
 
 export const normalizeTasks = (tasks?: Task[]): Task[] => {
   const seen = new Set<string>();

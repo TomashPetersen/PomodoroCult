@@ -5,8 +5,9 @@ export type AppScreen = 'timer' | 'tasks' | 'stats';
 export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 export type Locale = 'ru' | 'en';
 export type LanguagePreference = 'auto' | Locale;
+export type FocusMusicTrack = 'stream' | 'birds' | 'clock';
 
-export const CURRENT_STORAGE_VERSION = 1;
+export const CURRENT_STORAGE_VERSION = 2;
 
 export interface Settings {
   workTime: number;
@@ -14,6 +15,9 @@ export interface Settings {
   longBreak: number;
   longBreakInterval: number;
   languagePreference: LanguagePreference;
+  focusMusicEnabled: boolean;
+  focusMusicVolume: number;
+  focusMusicTrack: FocusMusicTrack;
 }
 
 export interface Task {
@@ -96,6 +100,9 @@ export type RuntimeMessage =
   | { type: 'POPUP_PAUSE_TIMER' }
   | { type: 'POPUP_RESET_TIMER' }
   | { type: 'POPUP_ENSURE_READY' }
+  | { type: 'OPEN_APP_WINDOW' }
+  | { type: 'TOGGLE_APP_WINDOW_MAXIMIZED' }
+  | { type: 'APP_WINDOW_CLOSED' }
   | { type: 'OFFSCREEN_START_TIMER'; payload: StartTimerPayload }
   | { type: 'OFFSCREEN_PAUSE_TIMER' }
   | { type: 'OFFSCREEN_STOP_TIMER' }
@@ -115,7 +122,10 @@ export const DEFAULT_SETTINGS: Settings = {
   shortBreak: 5,
   longBreak: 15,
   longBreakInterval: 5,
-  languagePreference: 'auto'
+  languagePreference: 'auto',
+  focusMusicEnabled: false,
+  focusMusicVolume: 0.45,
+  focusMusicTrack: 'stream'
 };
 
 export const STORAGE_KEYS = {

@@ -109,7 +109,10 @@ export const SettingsModal = () => {
         shortBreak: validation.get('shortBreak')!.value!,
         longBreak: validation.get('longBreak')!.value!,
         longBreakInterval: validation.get('longBreakInterval')!.value!,
-        languagePreference: draftLanguage
+        languagePreference: draftLanguage,
+        focusMusicEnabled: settings.focusMusicEnabled,
+        focusMusicVolume: settings.focusMusicVolume,
+        focusMusicTrack: settings.focusMusicTrack
       };
   const dirty =
     Boolean(nextSettings) &&
@@ -143,8 +146,8 @@ export const SettingsModal = () => {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#f6f8fa]/82 p-4 backdrop-blur-md dark:bg-[#0f141a]/82">
-      <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
-        <div className="mb-2 flex items-center justify-between">
+      <div className="flex max-h-[calc(100%-2rem)] w-full max-w-[32rem] flex-col rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+        <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'settings')}</h2>
           <div className="flex items-center gap-1">
             <button
@@ -168,7 +171,7 @@ export const SettingsModal = () => {
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           <input
             ref={importInputRef}
             type="file"
@@ -185,7 +188,7 @@ export const SettingsModal = () => {
               <label
                 key={field.key}
                 className={cn(
-                  'block rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-2 dark:border-zinc-800 dark:bg-[#21262d]',
+                  'block rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-2.5 dark:border-zinc-800 dark:bg-[#21262d]',
                   locked && 'opacity-60'
                 )}
               >
@@ -302,7 +305,7 @@ export const SettingsModal = () => {
             void saveSettings(nextSettings);
           }}
           className={cn(
-            'mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f]',
+            'mt-3 flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f]',
             'disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]'
           )}
         >

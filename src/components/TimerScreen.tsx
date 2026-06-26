@@ -1,4 +1,4 @@
-import { AlertCircle, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
+import { AlertCircle, ExternalLink, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getTaskTitle, getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
@@ -17,7 +17,12 @@ import { useAppStore } from '../store/useAppStore';
 import { TaskSelect } from './TaskSelect';
 import { TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 
-export const TimerScreen = () => {
+interface TimerScreenProps {
+  surface?: 'popup' | 'appWindow';
+}
+
+export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
+  const isAppWindow = surface === 'appWindow';
   const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
   const timerState = useAppStore((state) => state.timerState);
@@ -34,6 +39,7 @@ export const TimerScreen = () => {
   const startTimer = useAppStore((state) => state.startTimer);
   const pauseTimer = useAppStore((state) => state.pauseTimer);
   const openResetConfirm = useAppStore((state) => state.openResetConfirm);
+  const openAppWindow = useAppStore((state) => state.openAppWindow);
   const [now, setNow] = useState(() => Date.now());
   const [primaryActionPending, setPrimaryActionPending] = useState<'start' | 'pause' | null>(null);
 
@@ -131,7 +137,7 @@ export const TimerScreen = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="grid h-12 grid-cols-[42px_1fr_42px] items-center gap-2">
+      <header className={cn('grid grid-cols-[42px_1fr_42px] items-center gap-2', isAppWindow ? 'h-11' : 'h-12')}>
         <button
           type="button"
           onClick={openSettings}
@@ -159,7 +165,8 @@ export const TimerScreen = () => {
                 type="button"
                 onClick={() => setTimerMode(tab.mode)}
                 className={cn(
-                  'relative flex h-12 flex-col items-center justify-center rounded-lg px-1.5 text-center transition',
+                  'relative flex flex-col items-center justify-center rounded-lg px-1.5 text-center transition',
+                  isAppWindow ? 'h-11' : 'h-12',
                   active
                     ? 'bg-[#fcfcfb] text-zinc-950 shadow-sm dark:bg-[#21262d] dark:text-[#f0f3f6]'
                     : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-[#f0f3f6]'
@@ -200,8 +207,8 @@ export const TimerScreen = () => {
         </button>
       </header>
 
-      <section className="flex flex-1 min-h-0 flex-col items-center justify-center pt-3">
-        <div className="relative aspect-square w-full max-w-[18rem]">
+      <section className={cn('flex flex-1 min-h-0 flex-col items-center justify-center', isAppWindow ? 'pt-1' : 'pt-3')}>
+        <div className={cn('relative aspect-square w-full', isAppWindow ? 'max-w-[19.5rem]' : 'max-w-[18rem]')}>
           <svg className="h-full w-full -rotate-90" viewBox="0 0 258 258" aria-hidden="true">
             <circle
               cx="129"
@@ -262,7 +269,12 @@ export const TimerScreen = () => {
               />
               {statusLabel}
             </span>
-            <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums text-[clamp(2.9rem,14vw,4.6rem)] font-semibold leading-none text-zinc-950 dark:text-white">
+            <span
+              className={cn(
+                'absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums font-semibold leading-none text-zinc-950 dark:text-white',
+                isAppWindow ? 'text-[clamp(3.2rem,6.2vw,4.05rem)]' : 'text-[clamp(2.9rem,14vw,4.6rem)]'
+              )}
+            >
               {formatClock(displaySeconds)}
             </span>
             {showCompletedSessions && (
@@ -292,7 +304,7 @@ export const TimerScreen = () => {
         </div>
       </section>
 
-      <section className="space-y-3 pb-2">
+      <section className={cn('pb-2', isAppWindow ? 'space-y-2' : 'space-y-3')}>
         <div className="flex items-center justify-center gap-3">
           <button
             type="button"
@@ -352,6 +364,19 @@ export const TimerScreen = () => {
             <Square className="h-4 w-4 fill-current" />
           </button>
         </div>
+
+        {surface === 'popup' && (
+          <button
+            type="button"
+            onClick={() => void openAppWindow()}
+            className="flex h-8 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-[#f5f7fa] hover:text-zinc-950 dark:border-[#30363d] dark:bg-[#161b22] dark:text-zinc-300 dark:hover:border-[#484f58] dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+            aria-label={t(locale, 'openAppWindow')}
+            title={t(locale, 'openAppWindow')}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span>{t(locale, 'appWindowTitle')}</span>
+          </button>
+        )}
 
         <TaskSelect />
 

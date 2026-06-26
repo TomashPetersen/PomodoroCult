@@ -22,10 +22,14 @@ import { Locale, RuntimeMessage, TimerMode, TimerState } from './lib/types';
 
 const COMPLETION_ALARM = 'pomodoro-cult-completion';
 const COMPLETION_NOTIFICATION_DELAY_MS = 500;
+const APP_WINDOW_URL = 'app.html';
+const APP_WINDOW_WIDTH = 1040;
+const APP_WINDOW_HEIGHT = 760;
 
 let completionInFlight: Promise<void> | null = null;
 let lastCompletedKey: string | null = null;
 let timerOperationQueue: Promise<void> = Promise.resolve();
+let appWindowId: number | null = null;
 
 const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
   const result = timerOperationQueue.then(operation, operation);
@@ -86,6 +90,24 @@ const getAlarmsApi = (): typeof chrome.alarms | null => {
   return null;
 };
 
+const getWindowsApi = (): typeof chrome.windows | null => {
+  const browserApi = (
+    globalThis as typeof globalThis & {
+      browser?: { windows?: typeof chrome.windows };
+    }
+  ).browser;
+
+  if (browserApi?.windows) {
+    return browserApi.windows;
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.windows) {
+    return chrome.windows;
+  }
+
+  return null;
+};
+
 const createAlarm = async (targetEndTime: number): Promise<void> => {
   const alarms = getAlarmsApi();
   if (!alarms) {
@@ -112,6 +134,86 @@ const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+
+const focusExistingAppWindow = async (windowId: number): Promise<boolean> => {
+  const windowsApi = getWindowsApi();
+  if (!windowsApi) return false;
+
+  return await new Promise<boolean>((resolve) => {
+    windowsApi.update(windowId, { focused: true }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        resolve(false);
+        return;
+      }
+      resolve(true);
+    });
+  });
+};
+
+const openAppWindow = async (): Promise<void> => {
+  const windowsApi = getWindowsApi();
+  if (!windowsApi) {
+    throw new Error('Firefox windows API is unavailable.');
+  }
+
+  if (appWindowId !== null && (await focusExistingAppWindow(appWindowId))) {
+    return;
+  }
+
+  appWindowId = null;
+
+  await new Promise<void>((resolve, reject) => {
+    windowsApi.create(
+      {
+        url: chrome.runtime.getURL(APP_WINDOW_URL),
+        type: 'popup',
+        width: APP_WINDOW_WIDTH,
+        height: APP_WINDOW_HEIGHT,
+        focused: true
+      },
+      (createdWindow) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+
+        appWindowId = createdWindow?.id ?? null;
+        resolve();
+      }
+    );
+  });
+};
+
+const toggleAppWindowMaximized = async (): Promise<boolean> => {
+  const windowsApi = getWindowsApi();
+  if (!windowsApi || appWindowId === null) {
+    return false;
+  }
+
+  return await new Promise<boolean>((resolve, reject) => {
+    windowsApi.get(appWindowId!, (currentWindow) => {
+      const getError = chrome.runtime.lastError;
+      if (getError) {
+        reject(new Error(getError.message));
+        return;
+      }
+
+      const nextState = currentWindow.state === 'maximized' ? 'normal' : 'maximized';
+
+      windowsApi.update(appWindowId!, { state: nextState, focused: true }, () => {
+        const updateError = chrome.runtime.lastError;
+        if (updateError) {
+          reject(new Error(updateError.message));
+          return;
+        }
+
+        resolve(nextState === 'maximized');
+      });
+    });
+  });
+};
 
 const getNotificationCopy = (
   locale: Locale,
@@ -452,6 +554,13 @@ alarmsApi?.onAlarm.addListener((alarm) => {
   void completeExpiredTimer();
 });
 
+const windowsApi = getWindowsApi();
+windowsApi?.onRemoved.addListener((windowId) => {
+  if (windowId === appWindowId) {
+    appWindowId = null;
+  }
+});
+
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
   const respond = async (): Promise<void> => {
     if (!message?.type) {
@@ -462,6 +571,17 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
     switch (message.type) {
       case 'POPUP_ENSURE_READY':
         await resumeRunningTimer();
+        sendResponse({ ok: true });
+        return;
+      case 'OPEN_APP_WINDOW':
+        await openAppWindow();
+        sendResponse({ ok: true });
+        return;
+      case 'TOGGLE_APP_WINDOW_MAXIMIZED':
+        sendResponse({ ok: true, maximized: await toggleAppWindowMaximized() });
+        return;
+      case 'APP_WINDOW_CLOSED':
+        appWindowId = null;
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':

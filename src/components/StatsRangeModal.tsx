@@ -118,7 +118,7 @@ export const StatsRangeModal = () => {
           type="button"
           onClick={() => openPicker(target)}
           className={cn(
-            'group flex h-11 w-full items-center justify-between rounded-xl border bg-[#fcfcfb] px-3 text-left text-sm text-zinc-950 outline-none transition',
+            'group flex h-10 w-full items-center justify-between rounded-xl border bg-[#fcfcfb] px-3 text-left text-sm text-zinc-950 outline-none transition',
             'hover:border-zinc-300 hover:bg-[#f0f3f6] focus:border-rose-400',
             'dark:border-[#30363d] dark:bg-[#161b22] dark:text-[#f0f3f6] dark:hover:border-[#484f58] dark:hover:bg-[#21262d] dark:focus:border-rose-500',
             active ? 'border-rose-400 dark:border-rose-500' : 'border-zinc-200'
@@ -134,34 +134,34 @@ export const StatsRangeModal = () => {
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-zinc-950/55 p-5 backdrop-blur-sm">
-      <div className="relative w-full overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-5 shadow-soft dark:border-[#30363d] dark:bg-[#161b22]">
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-zinc-950/55 p-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-[24rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-[#30363d] dark:bg-[#161b22]">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
-            <CalendarDays className="h-5 w-5" />
+          <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
+            <CalendarDays className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{t(locale, 'chooseDateRange')}</h2>
           </div>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-4 space-y-3">
           {renderDateField('start', draftStart, t(locale, 'startDate'))}
           {renderDateField('end', draftEnd, t(locale, 'endDate'))}
         </div>
 
-        <p className="mt-4 rounded-xl bg-[#eef2f6] px-3 py-2 text-xs text-zinc-600 dark:bg-[#21262d] dark:text-zinc-300">
+        <p className="mt-3 rounded-xl bg-[#eef2f6] px-3 py-2 text-xs text-zinc-600 dark:bg-[#21262d] dark:text-zinc-300">
           {t(locale, 'currentSelection', {
             start: formatDateLabel(draftStart),
             end: formatDateLabel(draftEnd)
           })}
         </p>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={closeStatsRangeModal}
-            className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-[#30363d] dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+            className="h-10 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-[#30363d] dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
           >
             {t(locale, 'cancel')}
           </button>
@@ -169,7 +169,7 @@ export const StatsRangeModal = () => {
             type="button"
             disabled={!canApply}
             onClick={() => applyCustomStatsRange(draftStart, draftEnd)}
-            className="h-11 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]"
+            className="h-10 rounded-xl bg-[#24292f] text-sm font-semibold text-[#f6f8fa] transition hover:bg-[#32383f] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]"
           >
             {t(locale, 'apply')}
           </button>

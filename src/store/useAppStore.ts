@@ -32,6 +32,7 @@ import {
   CURRENT_STORAGE_VERSION,
   DEFAULT_SETTINGS,
   Locale,
+  FocusMusicTrack,
   RuntimeMessage,
   Settings,
   Statistics,
@@ -78,9 +79,15 @@ interface AppStore extends StoredData {
   clearRuntimeError: () => void;
   clearStartPulse: () => void;
   toggleTheme: () => Promise<void>;
+  openAppWindow: () => Promise<void>;
   openSettings: () => void;
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
+  saveFocusMusicSettings: (settings: {
+    enabled?: boolean;
+    volume?: number;
+    track?: FocusMusicTrack;
+  }) => Promise<void>;
   exportUserData: () => Promise<void>;
   importUserData: (raw: string) => Promise<void>;
   clearDataTransferStatus: () => void;
@@ -338,6 +345,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await setLocal({ theme });
   },
 
+  openAppWindow: async () => {
+    try {
+      const response = await sendRuntimeMessage({ type: 'OPEN_APP_WINDOW' });
+      if (response && !response.ok) {
+        throw new Error(response.error || t(get().locale, 'errorOpenAppWindow'));
+      }
+    } catch (error) {
+      set({
+        runtimeError: getActionError(error, t(get().locale, 'errorOpenAppWindow'))
+      });
+    }
+  },
+
   openSettings: () => set({ settingsOpen: true }),
 
   closeSettings: () => set({ settingsOpen: false }),
@@ -375,6 +395,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       settings,
       timerState: nextTimerState
     });
+  },
+
+  saveFocusMusicSettings: async ({ enabled, volume, track }) => {
+    const settings = normalizeSettings({
+      ...get().settings,
+      focusMusicEnabled: enabled ?? get().settings.focusMusicEnabled,
+      focusMusicVolume: volume ?? get().settings.focusMusicVolume,
+      focusMusicTrack: track ?? get().settings.focusMusicTrack
+    });
+
+    set({ settings });
+    await setLocal({ settings });
   },
 
   exportUserData: async () => {

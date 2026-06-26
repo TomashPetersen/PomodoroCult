@@ -32,10 +32,32 @@ Chrome and Firefox do not use the same background architecture:
 
 Shared UI, storage, task logic, and statistics behavior stay in the normal `src/` modules.
 
+## App window
+
+Firefox v1.1.0 adds a second UI entrypoint:
+
+- `index.html` - toolbar popup
+- `app.html` - larger extension app window
+
+The popup remains the quick controller. The app window is opened from the popup and uses the same local storage, timer state, tasks, statistics, theme, language, and settings.
+
+The larger app window also includes in-app controls for maximizing and restoring the window without relying on browser fullscreen prompts.
+
+## Local focus music
+
+The app window can play optional local focus loops during a running work timer:
+
+- stream
+- birds
+- ticking clock
+
+The loops are bundled under `public/sounds/`, disabled by default, and never loaded from a remote URL.
+
 ## Firefox-specific files
 
 - `manifest.firefox.ts`
 - `src/background-firefox.ts`
+- `app.html`
 
 ## Firefox manifest expectations
 

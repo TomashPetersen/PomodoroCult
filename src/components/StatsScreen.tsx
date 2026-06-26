@@ -10,7 +10,12 @@ import { ActionIconButton } from './ActionIconButton';
 import { StatsDeleteConfirmModal } from './StatsDeleteConfirmModal';
 import { StatsRangeModal } from './StatsRangeModal';
 
-export const StatsScreen = () => {
+interface StatsScreenProps {
+  surface?: 'popup' | 'appWindow';
+}
+
+export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
+  const isAppWindow = surface === 'appWindow';
   const locale = useAppStore((state) => state.locale);
   const statistics = useAppStore((state) => state.statistics);
   const tasks = useAppStore((state) => state.tasks);
@@ -83,9 +88,11 @@ export const StatsScreen = () => {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <header className="space-y-3">
+      <header className={cn(isAppWindow ? 'space-y-2' : 'space-y-3')}>
         <div className="flex min-h-9 items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'stats')}</h1>
+          <h1 className={cn('font-semibold text-zinc-950 dark:text-white', isAppWindow ? 'text-base' : 'text-lg')}>
+            {t(locale, 'stats')}
+          </h1>
           <div className="grid grid-cols-3 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
             {QUICK_STATS_PERIODS.map((period) => (
               <button
@@ -108,9 +115,17 @@ export const StatsScreen = () => {
         <button
           type="button"
           onClick={openStatsRangeModal}
-          className="flex h-11 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-left shadow-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#161b22] dark:hover:border-zinc-700"
+          className={cn(
+            'flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-left shadow-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#161b22] dark:hover:border-zinc-700',
+            isAppWindow ? 'h-10' : 'h-11'
+          )}
         >
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#eaeef2] text-zinc-600 dark:bg-[#21262d] dark:text-zinc-300">
+          <div
+            className={cn(
+              'grid shrink-0 place-items-center rounded-lg bg-[#eaeef2] text-zinc-600 dark:bg-[#21262d] dark:text-zinc-300',
+              isAppWindow ? 'h-7 w-7' : 'h-8 w-8'
+            )}
+          >
             <Calendar className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -124,37 +139,37 @@ export const StatsScreen = () => {
         </button>
       </header>
 
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-sm dark:border-zinc-800 dark:bg-[#161b22]">
+      <section className={cn('grid grid-cols-2 gap-3', isAppWindow ? 'mt-3' : 'mt-4')}>
+        <div className={cn('rounded-xl border border-zinc-200 bg-[#fcfcfb] shadow-sm dark:border-zinc-800 dark:bg-[#161b22]', isAppWindow ? 'p-2.5' : 'p-3')}>
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {selectedTitle
               ? t(locale, 'sessionsMetric', { title: selectedTitle })
               : t(locale, 'sessionsMetricEmpty')}
           </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+          <p className={cn('font-semibold text-zinc-950 dark:text-white', isAppWindow ? 'mt-1 text-2xl' : 'mt-2 text-3xl')}>
             {selectedRow?.sessions ?? 0}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-200 bg-[#fcfcfb] p-3 shadow-sm dark:border-zinc-800 dark:bg-[#161b22]">
+        <div className={cn('rounded-xl border border-zinc-200 bg-[#fcfcfb] shadow-sm dark:border-zinc-800 dark:bg-[#161b22]', isAppWindow ? 'p-2.5' : 'p-3')}>
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {selectedTitle
               ? t(locale, 'timeMetric', { title: selectedTitle })
               : t(locale, 'timeMetricEmpty')}
           </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+          <p className={cn('font-semibold text-zinc-950 dark:text-white', isAppWindow ? 'mt-1 text-2xl' : 'mt-2 text-3xl')}>
             {formatHoursMinutes(selectedRow?.seconds ?? 0)}
           </p>
         </div>
       </section>
 
-      <section className="mt-4 flex-1 overflow-y-auto pr-1">
+      <section className={cn('flex-1 overflow-y-auto pr-1', isAppWindow ? 'mt-3' : 'mt-4')}>
         {rows.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400 dark:text-zinc-500">
             <BarChart3 className="h-8 w-8" />
             <p className="mt-3 text-sm">{t(locale, 'noStats')}</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className={cn(isAppWindow ? 'space-y-1.5' : 'space-y-2')}>
             {rows.map((row) => {
               const active = selectedRow?.taskId === row.taskId;
 
@@ -164,7 +179,8 @@ export const StatsScreen = () => {
                   type="button"
                   onClick={() => selectStatsTask(row.taskId)}
                   className={cn(
-                    'flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left shadow-sm transition',
+                    'flex w-full items-center justify-between gap-3 rounded-xl border px-3 text-left shadow-sm transition',
+                    isAppWindow ? 'py-2.5' : 'py-3',
                     active
                       ? 'border-rose-300 bg-rose-50 dark:border-rose-500/60 dark:bg-rose-500/10'
                       : 'border-zinc-200 bg-[#fcfcfb] hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#161b22] dark:hover:border-zinc-700'
