@@ -124,7 +124,6 @@ export const StatsRangeModal = () => {
             active ? 'border-rose-400 dark:border-rose-500' : 'border-zinc-200'
           )}
           aria-label={t(locale, 'openCalendar')}
-          title={t(locale, 'openCalendar')}
         >
           <span>{formatDateLabel(value)}</span>
           <CalendarDays className="h-4 w-4 text-zinc-500 transition group-hover:text-zinc-950 dark:text-zinc-300" />
@@ -134,8 +133,8 @@ export const StatsRangeModal = () => {
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-zinc-950/55 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-[24rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-[#30363d] dark:bg-[#161b22]">
+    <div className="absolute inset-0 z-40 flex items-center justify-center overflow-hidden rounded-2xl bg-zinc-950/55 backdrop-blur-sm">
+      <div className="relative mx-4 w-full max-w-[24rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-[#30363d] dark:bg-[#161b22]">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
             <CalendarDays className="h-4 w-4" />
@@ -194,7 +193,6 @@ export const StatsRangeModal = () => {
                   onClick={() => setMonthCursor((current) => addMonths(current, -1))}
                   className="grid h-8 w-8 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
                   aria-label={t(locale, 'previousMonth')}
-                  title={t(locale, 'previousMonth')}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -206,7 +204,6 @@ export const StatsRangeModal = () => {
                   onClick={() => setMonthCursor((current) => addMonths(current, 1))}
                   className="grid h-8 w-8 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
                   aria-label={t(locale, 'nextMonth')}
-                  title={t(locale, 'nextMonth')}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

@@ -3,6 +3,7 @@ import { t } from '../lib/i18n';
 import { cn } from '../lib/ui';
 import { AppScreen } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
+import { ActionIconButton } from './ActionIconButton';
 
 const items: Array<{ screen: AppScreen; icon: typeof Timer; labelKey: 'screenTimer' | 'screenTasks' | 'screenStats' }> = [
   { screen: 'timer', icon: Timer, labelKey: 'screenTimer' },
@@ -23,21 +24,21 @@ export const FooterNav = () => {
         const label = t(locale, item.labelKey);
 
         return (
-          <button
+          <ActionIconButton
             key={item.screen}
             type="button"
             onClick={() => setScreen(item.screen)}
+            label={label}
+            tooltipAlign="center"
             className={cn(
               'mx-auto grid h-11 w-11 place-items-center rounded-xl transition',
               active
                 ? 'bg-[#24292f] text-[#f6f8fa] dark:bg-[#f0f3f6] dark:text-[#161b22]'
                 : 'text-zinc-500 hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]'
             )}
-            aria-label={label}
-            title={label}
           >
             <Icon className="h-5 w-5" />
-          </button>
+          </ActionIconButton>
         );
       })}
     </footer>

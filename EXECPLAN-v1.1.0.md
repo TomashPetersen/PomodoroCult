@@ -19,6 +19,8 @@ Version 1.1.0 adds a hybrid product model: the popup remains a quick remote cont
 - [x] 2026-06-26: Restore a compact popup entry to the separate native app window without making the timer widget look like it expands in place.
 - [x] 2026-06-26: Add an in-window fullscreen toggle and compact the desktop workspace layout.
 - [x] 2026-06-26: Replace browser fullscreen with native window maximize/restore behavior and tighten modal/layout density for the desktop window.
+- [x] 2026-06-30: Harden app-window de-duplication without adding `tabs` permission, and make the chart initially focus the most recent dates in the selected range.
+- [x] 2026-07-01: Add an optional auto-start setting for short break and long rest timers after a completed work timer.
 
 ## Surprises & Discoveries
 
@@ -39,10 +41,14 @@ Version 1.1.0 adds a hybrid product model: the popup remains a quick remote cont
 - Do not add sidebar in 1.1.0.
 - Keep the toolbar popup as a compact quick widget. The larger workspace opens as a separate Firefox popup-type window, so the operating system window frame provides minimize, maximize, restore, close, and resizing behavior.
 - Firefox popup-type extension windows can show a disabled native maximize button on Windows. Use the Firefox windows API to maximize and restore the app window instead of browser fullscreen, which triggers a large native permission banner.
+- Firefox does not reliably expose extension tab URLs to the background without `tabs` permission, so app-window de-duplication must not depend on scanning `tab.url`.
+- Break/rest auto-start is a user preference and is disabled by default. When enabled, the next break or rest starts immediately after a completed work timer, while the user can still pause, stop, or skip a short break.
 
 ## Outcomes & Retrospective
 
-Implemented the Firefox app-window foundation, restored the compact popup, added a more compact shared app-window layout with native maximize/restore behavior, tightened modal density, added three optional local focus loops, and kept the manifest permission set unchanged.
+Implemented the Firefox app-window foundation, restored the compact popup, added a more compact shared app-window layout with native maximize/restore behavior, tightened modal density, added three optional local focus loops, and kept the manifest permission set unchanged. The app window now registers its own `windowId` with the background page so repeated open requests can focus the existing workspace without relying on `tabs` permission, and the chart view scrolls to the newest days in the selected range after render. Settings now also include optional auto-start for break/rest timers after completed work sessions, with safe defaults for existing users.
+
+Revision note 2026-06-30: documented and implemented app-window de-duplication and chart recency focus because the Firefox UI should behave like one app workspace and the 30-day chart should show current activity first.
 
 ## Context and Orientation
 
@@ -82,6 +88,7 @@ Manual Firefox check:
 4. Change tasks, statistics range, settings, language, and theme; verify both surfaces stay synced.
 5. Enable focus music in the app window and verify stream, birds, and ticking clock play only during a running work timer.
 6. Maximize and restore the app window from the header button and verify no browser fullscreen banner appears.
+7. Enable auto-start breaks, complete a work timer, and verify the next break/rest starts automatically and can be paused, stopped, or skipped when it is a short break.
 
 ## Validation and Acceptance
 
@@ -90,6 +97,7 @@ Manual Firefox check:
 - Closing the app window does not break the popup or timer runtime.
 - No remote audio, analytics, host permissions, or backend calls are introduced.
 - Old settings migrate to focus music defaults without losing tasks or statistics.
+- Old settings migrate to `autoStartBreaks: false` without losing tasks or statistics.
 
 ## Idempotence and Recovery
 
@@ -106,6 +114,7 @@ New settings:
 - `focusMusicEnabled: boolean`
 - `focusMusicVolume: number`
 - `focusMusicTrack: 'stream' | 'birds' | 'clock'`
+- `autoStartBreaks: boolean`
 
 New runtime messages:
 
@@ -121,3 +130,5 @@ Revision note 2026-06-24: Updated after implementation shifted from one focus lo
 Revision note 2026-06-24: Marked implementation and Firefox build validation complete after `npm.cmd run build:firefox` passed.
 
 Revision note 2026-06-24: Updated audio source notes after replacing generated WAV files with OpenGameArt audio assets.
+
+Revision note 2026-07-01: Documented the auto-start break/rest setting because it changes timer transition behavior while preserving backward-compatible storage defaults.

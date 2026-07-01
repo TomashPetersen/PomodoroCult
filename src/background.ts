@@ -240,6 +240,28 @@ const handleResetTimer = async (): Promise<TimerState> => {
   return nextState;
 };
 
+const handleSkipShortBreak = async (): Promise<TimerState> => {
+  const { settings, timerState } = await readStoredData();
+
+  if (timerState.currentMode !== 'shortBreak') {
+    return timerState;
+  }
+
+  const nextState: TimerState = {
+    ...timerState,
+    isRunning: false,
+    isPaused: false,
+    revision: getNextTimerRevision(timerState),
+    currentMode: 'work',
+    remainingSeconds: getDurationSeconds(settings, 'work'),
+    targetEndTime: null
+  };
+
+  await setLocal({ timerState: nextState });
+  await stopOffscreenTimer();
+  return nextState;
+};
+
 const handleTimerCompleted = async (
   payload: Extract<RuntimeMessage, { type: 'TIMER_COMPLETED' }>['payload']
 ): Promise<TimerState> => {
@@ -260,6 +282,7 @@ const handleTimerCompleted = async (
     const nextMode =
       completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';
     const nextDuration = getDurationSeconds(settings, nextMode);
+    const nextTargetEndTime = settings.autoStartBreaks ? Date.now() + nextDuration * 1000 : null;
 
     statistics = addSessionStatistics(
       statistics,
@@ -270,12 +293,12 @@ const handleTimerCompleted = async (
 
     const nextState: TimerState = {
       ...timerState,
-      isRunning: false,
+      isRunning: settings.autoStartBreaks,
       isPaused: false,
       revision: getNextTimerRevision(timerState),
       currentMode: nextMode,
       remainingSeconds: nextDuration,
-      targetEndTime: null,
+      targetEndTime: nextTargetEndTime,
       activeTaskId,
       completedSessions
     };
@@ -285,6 +308,16 @@ const handleTimerCompleted = async (
       statistics,
       timerState: nextState
     });
+
+    if (nextTargetEndTime) {
+      await startOffscreenTimer({
+        mode: nextMode,
+        durationSeconds: nextDuration,
+        targetEndTime: nextTargetEndTime,
+        activeTaskId,
+        statSeconds: getDurationSeconds(settings, nextMode)
+      });
+    }
 
     return nextState;
   }
@@ -335,6 +368,9 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         return;
       case 'POPUP_RESET_TIMER':
         sendResponse({ ok: true, timerState: await handleResetTimer() });
+        return;
+      case 'POPUP_SKIP_SHORT_BREAK':
+        sendResponse({ ok: true, timerState: await handleSkipShortBreak() });
         return;
       case 'TIMER_COMPLETED':
         sendResponse({ ok: true, timerState: await handleTimerCompleted(message.payload) });

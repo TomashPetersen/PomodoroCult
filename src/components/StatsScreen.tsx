@@ -24,6 +24,9 @@ export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
   const statsRangeEnd = useAppStore((state) => state.statsRangeEnd);
   const selectedStatsTaskId = useAppStore((state) => state.selectedStatsTaskId);
   const statsTaskSelectionTouched = useAppStore((state) => state.statsTaskSelectionTouched);
+  const statsView = useAppStore((state) => state.statsView);
+  const setStatsView = useAppStore((state) => state.setStatsView);
+  const openStatsChartWindow = useAppStore((state) => state.openStatsChartWindow);
   const setStatsPeriod = useAppStore((state) => state.setStatsPeriod);
   const openStatsRangeModal = useAppStore((state) => state.openStatsRangeModal);
   const openStatsDeleteConfirm = useAppStore((state) => state.openStatsDeleteConfirm);
@@ -85,7 +88,6 @@ export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
   const selectedTitle = selectedRow
     ? getTaskTitle(locale, selectedRow.taskId, selectedRow.title)
     : null;
-
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <header className={cn(isAppWindow ? 'space-y-2' : 'space-y-3')}>
@@ -137,6 +139,38 @@ export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
             </p>
           </div>
         </button>
+
+        <div className="grid grid-cols-2 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
+          {[
+            { view: 'list' as const, label: t(locale, 'statsListView') },
+            { view: 'chart' as const, label: t(locale, 'statsChartView') }
+          ].map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              onClick={() => {
+                if (item.view === 'chart') {
+                  if (isAppWindow) {
+                    setStatsView('chart');
+                  } else {
+                    void openStatsChartWindow();
+                  }
+                  return;
+                }
+
+                setStatsView('list');
+              }}
+              className={cn(
+                'h-8 rounded-lg px-2 text-xs font-semibold transition',
+                (isAppWindow ? statsView : 'list') === item.view
+                  ? 'bg-[#fcfcfb] text-zinc-950 shadow-sm dark:bg-[#21262d] dark:text-[#f0f3f6]'
+                  : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-[#f0f3f6]'
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <section className={cn('grid grid-cols-2 gap-3', isAppWindow ? 'mt-3' : 'mt-4')}>

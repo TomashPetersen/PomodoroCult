@@ -11,6 +11,7 @@ The project targets two browser builds:
 
 - Work, short break, and long rest timers
 - Automatic mode switching after a completed work session
+- Optional auto-start for short break and long rest timers
 - Task selection for work sessions
 - Local session statistics
 - Background countdown after the popup closes

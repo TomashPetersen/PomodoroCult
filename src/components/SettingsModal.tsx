@@ -6,6 +6,7 @@ import { areTimerDurationsLocked } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { LanguagePreference, Settings } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
+import { ActionIconButton } from './ActionIconButton';
 
 type SettingKey = (typeof SETTINGS_FIELDS)[number]['key'];
 type DraftValues = Record<SettingKey, string>;
@@ -43,6 +44,7 @@ export const SettingsModal = () => {
   const dataTransferError = useAppStore((state) => state.dataTransferError);
   const [draftValues, setDraftValues] = useState<DraftValues>(() => toDraftValues(settings));
   const [draftLanguage, setDraftLanguage] = useState<LanguagePreference>(settings.languagePreference);
+  const [draftAutoStartBreaks, setDraftAutoStartBreaks] = useState(settings.autoStartBreaks);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const timerDurationsLocked = areTimerDurationsLocked(settings, timerState);
@@ -54,6 +56,7 @@ export const SettingsModal = () => {
 
     setDraftValues(toDraftValues(settings));
     setDraftLanguage(settings.languagePreference);
+    setDraftAutoStartBreaks(settings.autoStartBreaks);
     setExportMenuOpen(false);
   }, [open, settings]);
 
@@ -76,6 +79,11 @@ export const SettingsModal = () => {
     return result;
   }, [draftValues]);
 
+  const shortBreakValue = validation.get('shortBreak')?.value ?? null;
+  const longBreakValue = validation.get('longBreak')?.value ?? null;
+  const breakRelationInvalid =
+    shortBreakValue !== null && longBreakValue !== null && shortBreakValue > longBreakValue;
+
   if (!open) return null;
 
   const setValue = (key: SettingKey, value: string) => {
@@ -86,22 +94,59 @@ export const SettingsModal = () => {
   const clampDraft = (key: SettingKey) => {
     const parsed = parseDraftValue(draftValues[key]);
     const fallback = settings[key];
+    let nextValue = clampFieldValue(key, parsed ?? fallback);
+
+    if (key === 'shortBreak') {
+      const pairedLongBreak = clampFieldValue(
+        'longBreak',
+        parseDraftValue(draftValues.longBreak) ?? settings.longBreak
+      );
+      nextValue = Math.min(nextValue, pairedLongBreak);
+    }
+
+    if (key === 'longBreak') {
+      const pairedShortBreak = clampFieldValue(
+        'shortBreak',
+        parseDraftValue(draftValues.shortBreak) ?? settings.shortBreak
+      );
+      nextValue = Math.max(nextValue, pairedShortBreak);
+    }
+
     setDraftValues((current) => ({
       ...current,
-      [key]: String(clampFieldValue(key, parsed ?? fallback))
+      [key]: String(nextValue)
     }));
   };
 
   const stepValue = (key: SettingKey, delta: number) => {
     if (key !== 'longBreakInterval' && timerDurationsLocked) return;
     const parsed = parseDraftValue(draftValues[key]) ?? settings[key];
+    let nextValue = clampFieldValue(key, parsed + delta);
+
+    if (key === 'shortBreak') {
+      const pairedLongBreak = clampFieldValue(
+        'longBreak',
+        parseDraftValue(draftValues.longBreak) ?? settings.longBreak
+      );
+      nextValue = Math.min(nextValue, pairedLongBreak);
+    }
+
+    if (key === 'longBreak') {
+      const pairedShortBreak = clampFieldValue(
+        'shortBreak',
+        parseDraftValue(draftValues.shortBreak) ?? settings.shortBreak
+      );
+      nextValue = Math.max(nextValue, pairedShortBreak);
+    }
+
     setDraftValues((current) => ({
       ...current,
-      [key]: String(clampFieldValue(key, parsed + delta))
+      [key]: String(nextValue)
     }));
   };
 
-  const hasInvalidValues = SETTINGS_FIELDS.some((field) => !validation.get(field.key)?.valid);
+  const hasInvalidValues =
+    SETTINGS_FIELDS.some((field) => !validation.get(field.key)?.valid) || breakRelationInvalid;
   const nextSettings: Settings | null = hasInvalidValues
     ? null
     : {
@@ -110,6 +155,7 @@ export const SettingsModal = () => {
         longBreak: validation.get('longBreak')!.value!,
         longBreakInterval: validation.get('longBreakInterval')!.value!,
         languagePreference: draftLanguage,
+        autoStartBreaks: draftAutoStartBreaks,
         focusMusicEnabled: settings.focusMusicEnabled,
         focusMusicVolume: settings.focusMusicVolume,
         focusMusicTrack: settings.focusMusicTrack
@@ -120,7 +166,8 @@ export const SettingsModal = () => {
       nextSettings!.shortBreak !== settings.shortBreak ||
       nextSettings!.longBreak !== settings.longBreak ||
       nextSettings!.longBreakInterval !== settings.longBreakInterval ||
-      nextSettings!.languagePreference !== settings.languagePreference);
+      nextSettings!.languagePreference !== settings.languagePreference ||
+      nextSettings!.autoStartBreaks !== settings.autoStartBreaks);
   const canSave = Boolean(nextSettings) && dirty;
 
   const handleImportFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -150,24 +197,26 @@ export const SettingsModal = () => {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t(locale, 'settings')}</h2>
           <div className="flex items-center gap-1">
-            <button
+            <ActionIconButton
               type="button"
               onClick={() => setExportMenuOpen(true)}
+              label={t(locale, 'openDataMenu')}
+              tooltipAlign="right"
+              tooltipSide="bottom"
               className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-              aria-label={t(locale, 'openDataMenu')}
-              title={t(locale, 'openDataMenu')}
             >
               <Upload className="h-5 w-5" />
-            </button>
-            <button
+            </ActionIconButton>
+            <ActionIconButton
               type="button"
               onClick={closeSettings}
+              label={t(locale, 'close')}
+              tooltipAlign="right"
+              tooltipSide="bottom"
               className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-              aria-label={t(locale, 'close')}
-              title={t(locale, 'close')}
             >
               <X className="h-5 w-5" />
-            </button>
+            </ActionIconButton>
           </div>
         </div>
 
@@ -182,7 +231,10 @@ export const SettingsModal = () => {
 
           {SETTINGS_FIELDS.map((field) => {
             const locked = field.key !== 'longBreakInterval' && timerDurationsLocked;
-            const invalid = !validation.get(field.key)?.valid;
+            const invalid =
+              !validation.get(field.key)?.valid ||
+              (field.key === 'shortBreak' && breakRelationInvalid) ||
+              (field.key === 'longBreak' && breakRelationInvalid);
 
             return (
               <label
@@ -207,7 +259,6 @@ export const SettingsModal = () => {
                         locked && 'cursor-not-allowed opacity-50'
                       )}
                       aria-label={t(locale, 'decrease')}
-                      title={locked ? timerDurationsLockedMessage : t(locale, 'decrease')}
                     >
                       <Minus className="h-4 w-4" />
                     </button>
@@ -218,7 +269,6 @@ export const SettingsModal = () => {
                       value={draftValues[field.key]}
                       onBlur={() => clampDraft(field.key)}
                       onChange={(event) => setValue(field.key, event.target.value)}
-                      title={locked ? timerDurationsLockedMessage : undefined}
                       className="h-8 w-16 bg-transparent text-center text-sm font-semibold text-zinc-950 outline-none disabled:cursor-not-allowed dark:text-white"
                     />
                     <button
@@ -230,7 +280,6 @@ export const SettingsModal = () => {
                         locked && 'cursor-not-allowed opacity-50'
                       )}
                       aria-label={t(locale, 'increase')}
-                      title={locked ? timerDurationsLockedMessage : t(locale, 'increase')}
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -238,7 +287,11 @@ export const SettingsModal = () => {
                 </div>
                 {invalid && (
                   <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">
-                    {t(locale, 'settingInvalidValue', { min: field.min, max: field.max })}
+                    {field.key === 'shortBreak' && breakRelationInvalid
+                      ? t(locale, 'settingShortBreakNotLongerThanRest')
+                      : field.key === 'longBreak' && breakRelationInvalid
+                        ? t(locale, 'settingLongRestNotShorterThanBreak')
+                        : t(locale, 'settingInvalidValue', { min: field.min, max: field.max })}
                   </p>
                 )}
                 {field.key === 'longBreakInterval' && timerDurationsLocked && (
@@ -255,6 +308,36 @@ export const SettingsModal = () => {
               {timerDurationsLockedMessage}
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setDraftAutoStartBreaks((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-2.5 text-left transition hover:border-zinc-300 hover:bg-[#eef2f6] dark:border-zinc-800 dark:bg-[#21262d] dark:hover:bg-[#30363d]"
+            aria-pressed={draftAutoStartBreaks}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                {t(locale, 'settingAutoStartBreaks')}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
+                {t(locale, 'settingAutoStartBreaksDescription')}
+              </span>
+            </span>
+            <span
+              className={cn(
+                'relative h-6 w-11 shrink-0 rounded-full transition',
+                draftAutoStartBreaks ? 'bg-rose-500' : 'bg-zinc-300 dark:bg-zinc-700'
+              )}
+              aria-hidden="true"
+            >
+              <span
+                className={cn(
+                  'absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition',
+                  draftAutoStartBreaks ? 'left-6' : 'left-1'
+                )}
+              />
+            </span>
+          </button>
 
           <div className="rounded-xl border border-zinc-200 bg-[#f0f3f6] px-3 py-2 dark:border-zinc-800 dark:bg-[#21262d]">
             <p className="mb-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
@@ -327,15 +410,15 @@ export const SettingsModal = () => {
               <h3 className="text-base font-semibold text-zinc-950 dark:text-white">
                 {t(locale, 'dataMenuTitle')}
               </h3>
-              <button
+              <ActionIconButton
                 type="button"
                 onClick={() => setExportMenuOpen(false)}
+                label={t(locale, 'close')}
+                tooltipAlign="right"
                 className="grid h-8 w-8 place-items-center rounded-lg text-zinc-500 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-                aria-label={t(locale, 'close')}
-                title={t(locale, 'close')}
               >
                 <X className="h-4 w-4" />
-              </button>
+              </ActionIconButton>
             </div>
 
             <button

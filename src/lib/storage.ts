@@ -185,6 +185,7 @@ export const normalizeSettings = (settings?: Partial<Settings>): Settings => {
       settings?.languagePreference === 'ru' || settings?.languagePreference === 'en'
         ? settings.languagePreference
         : 'auto',
+    autoStartBreaks: Boolean(settings?.autoStartBreaks),
     focusMusicEnabled: Boolean(settings?.focusMusicEnabled),
     focusMusicVolume: Math.max(
       FOCUS_MUSIC_VOLUME.min,

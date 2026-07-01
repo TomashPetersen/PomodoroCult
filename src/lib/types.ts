@@ -2,6 +2,7 @@ export type TimerMode = 'work' | 'shortBreak' | 'longBreak';
 export type TimerLifecycleState = 'idle' | 'running' | 'paused' | 'ready';
 export type ThemeMode = 'light' | 'dark';
 export type AppScreen = 'timer' | 'tasks' | 'stats';
+export type StatsView = 'list' | 'chart';
 export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 export type Locale = 'ru' | 'en';
 export type LanguagePreference = 'auto' | Locale;
@@ -15,6 +16,7 @@ export interface Settings {
   longBreak: number;
   longBreakInterval: number;
   languagePreference: LanguagePreference;
+  autoStartBreaks: boolean;
   focusMusicEnabled: boolean;
   focusMusicVolume: number;
   focusMusicTrack: FocusMusicTrack;
@@ -99,8 +101,14 @@ export type RuntimeMessage =
   | { type: 'POPUP_START_TIMER'; payload: { mode: TimerMode; startedAt: number } }
   | { type: 'POPUP_PAUSE_TIMER' }
   | { type: 'POPUP_RESET_TIMER' }
+  | { type: 'POPUP_SKIP_SHORT_BREAK' }
   | { type: 'POPUP_ENSURE_READY' }
-  | { type: 'OPEN_APP_WINDOW' }
+  | {
+      type: 'OPEN_APP_WINDOW';
+      payload?: { screen?: AppScreen; statsView?: StatsView };
+    }
+  | { type: 'APP_WINDOW_NAVIGATE'; payload: { screen?: AppScreen; statsView?: StatsView } }
+  | { type: 'APP_WINDOW_READY'; payload: { windowId: number } }
   | { type: 'TOGGLE_APP_WINDOW_MAXIMIZED' }
   | { type: 'APP_WINDOW_CLOSED' }
   | { type: 'OFFSCREEN_START_TIMER'; payload: StartTimerPayload }
@@ -123,6 +131,7 @@ export const DEFAULT_SETTINGS: Settings = {
   longBreak: 15,
   longBreakInterval: 5,
   languagePreference: 'auto',
+  autoStartBreaks: false,
   focusMusicEnabled: false,
   focusMusicVolume: 0.45,
   focusMusicTrack: 'stream'

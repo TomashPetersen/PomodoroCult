@@ -37,6 +37,7 @@ import {
   Settings,
   Statistics,
   StatsPeriod,
+  StatsView,
   StoredData,
   Task,
   ThemeMode,
@@ -68,6 +69,7 @@ interface AppStore extends StoredData {
   statsDeleteConfirmTaskId: string | null;
   selectedStatsTaskId: string | null;
   statsTaskSelectionTouched: boolean;
+  statsView: StatsView;
   settingsOpen: boolean;
   taskActionError: string | null;
   highlightedTaskId: string | null;
@@ -79,7 +81,7 @@ interface AppStore extends StoredData {
   clearRuntimeError: () => void;
   clearStartPulse: () => void;
   toggleTheme: () => Promise<void>;
-  openAppWindow: () => Promise<void>;
+  openAppWindow: (options?: { screen?: AppScreen; statsView?: StatsView }) => Promise<void>;
   openSettings: () => void;
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
@@ -93,6 +95,7 @@ interface AppStore extends StoredData {
   clearDataTransferStatus: () => void;
   startTimer: (startedAt?: number) => Promise<void>;
   pauseTimer: () => Promise<void>;
+  skipShortBreak: () => Promise<void>;
   openResetConfirm: () => void;
   closeResetConfirm: () => void;
   confirmReset: () => Promise<void>;
@@ -105,6 +108,8 @@ interface AppStore extends StoredData {
   clearTaskActionError: () => void;
   clearHighlightedTask: () => void;
   setStatsPeriod: (period: QuickStatsPeriod) => void;
+  setStatsView: (view: StatsView) => void;
+  openStatsChartWindow: () => Promise<void>;
   openStatsRangeModal: () => void;
   closeStatsRangeModal: () => void;
   applyCustomStatsRange: (start: string, end: string) => void;
@@ -234,6 +239,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   statsDeleteConfirmTaskId: null,
   selectedStatsTaskId: null,
   statsTaskSelectionTouched: false,
+  statsView: 'list',
   settingsOpen: false,
   taskActionError: null,
   highlightedTaskId: null,
@@ -345,9 +351,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await setLocal({ theme });
   },
 
-  openAppWindow: async () => {
+  openAppWindow: async (options) => {
     try {
-      const response = await sendRuntimeMessage({ type: 'OPEN_APP_WINDOW' });
+      const response = await sendRuntimeMessage({
+        type: 'OPEN_APP_WINDOW',
+        ...(options ? { payload: options } : {})
+      });
       if (response && !response.ok) {
         throw new Error(response.error || t(get().locale, 'errorOpenAppWindow'));
       }
@@ -576,6 +585,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         timerState,
         runtimeError: getActionError(error, t(locale, 'errorPauseTimer'))
+      });
+    }
+  },
+
+  skipShortBreak: async () => {
+    const { locale, timerState } = get();
+    if (timerState.currentMode !== 'shortBreak') {
+      return;
+    }
+
+    try {
+      const response = await sendRuntimeMessage({ type: 'POPUP_SKIP_SHORT_BREAK' });
+
+      if (!response?.ok) {
+        throw new Error(response?.error || t(locale, 'errorSkipBreak'));
+      }
+
+      if (response.timerState) {
+        set({
+          timerState: response.timerState,
+          selectedTimerMode: response.timerState.currentMode,
+          runtimeError: null
+        });
+      }
+    } catch (error) {
+      set({
+        runtimeError: getActionError(error, t(locale, 'errorSkipBreak'))
       });
     }
   },
@@ -811,6 +847,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       statsRangeStart: range.start,
       statsRangeEnd: range.end
     });
+  },
+
+  setStatsView: (view) => set({ statsView: view }),
+
+  openStatsChartWindow: async () => {
+    try {
+      set({ selectedScreen: 'stats', statsView: 'chart' });
+      await get().openAppWindow({ screen: 'stats', statsView: 'chart' });
+    } catch (error) {
+      set({
+        runtimeError: getActionError(error, t(get().locale, 'errorOpenAppWindow'))
+      });
+    }
   },
 
   openStatsRangeModal: () => set({ statsRangeModalOpen: true }),

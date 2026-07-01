@@ -273,26 +273,26 @@ export const TasksScreen = () => {
 
       {pendingDeleteTaskId && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/55 p-5 backdrop-blur-sm">
-          <div className="w-full rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-5 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+          <div className="w-full max-w-[24rem] rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
-                <Trash2 className="h-5 w-5" />
+              <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+                <Trash2 className="h-4 w-4" />
               </div>
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
                   {t(locale, 'confirmDeleteTask')}
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                <p className="mt-1 text-sm leading-5 text-zinc-600 dark:text-zinc-300">
                   {t(locale, 'deleteTaskDescription', { title: pendingDeleteTitle })}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
               <button
                 type="button"
                 onClick={() => setPendingDeleteTaskId(null)}
-                className="h-11 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+                className="h-10 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
               >
                 {t(locale, 'cancel')}
               </button>
@@ -304,7 +304,7 @@ export const TasksScreen = () => {
                   setPendingDeleteTaskId(null);
                   await deleteTask(taskId);
                 }}
-                className="h-11 rounded-xl bg-rose-600 px-5 text-sm font-semibold text-white transition hover:bg-rose-500"
+                className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-500"
               >
                 {t(locale, 'deleteForever')}
               </button>

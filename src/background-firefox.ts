@@ -30,6 +30,7 @@ let completionInFlight: Promise<void> | null = null;
 let lastCompletedKey: string | null = null;
 let timerOperationQueue: Promise<void> = Promise.resolve();
 let appWindowId: number | null = null;
+let appWindowOpenPromise: Promise<void> | null = null;
 
 const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
   const result = timerOperationQueue.then(operation, operation);
@@ -151,27 +152,118 @@ const focusExistingAppWindow = async (windowId: number): Promise<boolean> => {
   });
 };
 
-const openAppWindow = async (): Promise<void> => {
+const buildAppWindowUrl = (options?: { screen?: string; statsView?: string }): string => {
+  const url = new URL(chrome.runtime.getURL(APP_WINDOW_URL));
+
+  if (options?.screen) {
+    url.searchParams.set('screen', options.screen);
+  }
+  if (options?.statsView) {
+    url.searchParams.set('statsView', options.statsView);
+  }
+  return url.toString();
+};
+
+const findExistingAppWindowId = async (): Promise<number | null> => {
+  const windowsApi = getWindowsApi();
+  if (!windowsApi) return null;
+
+  const appWindowBaseUrl = chrome.runtime.getURL(APP_WINDOW_URL);
+
+  return await new Promise<number | null>((resolve) => {
+    windowsApi.getAll({ populate: true }, (windows) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        resolve(null);
+        return;
+      }
+
+      for (const candidate of windows) {
+        const hasAppTab = candidate.tabs?.some((tab) => tab.url?.startsWith(appWindowBaseUrl));
+        if (hasAppTab && typeof candidate.id === 'number') {
+          resolve(candidate.id);
+          return;
+        }
+      }
+
+      resolve(null);
+    });
+  });
+};
+
+const getKnownAppWindowId = async (): Promise<number | null> => {
+  if (appWindowId === null) {
+    return null;
+  }
+
+  const windowsApi = getWindowsApi();
+  if (!windowsApi) {
+    appWindowId = null;
+    return null;
+  }
+
+  return await new Promise<number | null>((resolve) => {
+    windowsApi.get(appWindowId as number, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        appWindowId = null;
+        resolve(null);
+        return;
+      }
+
+      resolve(appWindowId);
+    });
+  });
+};
+
+const notifyAppWindowNavigation = async (
+  options?: { screen?: string; statsView?: string }
+): Promise<void> => {
+  if (!options) return;
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'APP_WINDOW_NAVIGATE',
+      payload: options
+    });
+  } catch {
+    // The app window may still be mounting; query parameters cover newly created windows.
+  }
+};
+
+const doOpenAppWindow = async (options?: { screen?: string; statsView?: string }): Promise<void> => {
   const windowsApi = getWindowsApi();
   if (!windowsApi) {
     throw new Error('Firefox windows API is unavailable.');
   }
 
-  if (appWindowId !== null && (await focusExistingAppWindow(appWindowId))) {
+  const knownWindowId = await getKnownAppWindowId();
+  if (knownWindowId !== null && (await focusExistingAppWindow(knownWindowId))) {
+    await notifyAppWindowNavigation(options);
     return;
   }
 
   appWindowId = null;
 
+  const existingWindowId = await findExistingAppWindowId();
+  if (existingWindowId !== null && (await focusExistingAppWindow(existingWindowId))) {
+    appWindowId = existingWindowId;
+    await notifyAppWindowNavigation(options);
+    return;
+  }
+
   await new Promise<void>((resolve, reject) => {
+    const createData: chrome.windows.CreateData & { titlePreface?: string } = {
+      url: buildAppWindowUrl(options),
+      type: 'popup',
+      width: APP_WINDOW_WIDTH,
+      height: APP_WINDOW_HEIGHT,
+      focused: true,
+      titlePreface: 'Pomodoro Cult'
+    };
+
     windowsApi.create(
-      {
-        url: chrome.runtime.getURL(APP_WINDOW_URL),
-        type: 'popup',
-        width: APP_WINDOW_WIDTH,
-        height: APP_WINDOW_HEIGHT,
-        focused: true
-      },
+      createData,
       (createdWindow) => {
         const error = chrome.runtime.lastError;
         if (error) {
@@ -186,30 +278,56 @@ const openAppWindow = async (): Promise<void> => {
   });
 };
 
+const openAppWindow = async (
+  options?: { screen?: string; statsView?: string }
+): Promise<void> => {
+  if (appWindowOpenPromise) {
+    await appWindowOpenPromise;
+
+    const knownWindowId = await getKnownAppWindowId();
+    if (knownWindowId !== null && (await focusExistingAppWindow(knownWindowId))) {
+      await notifyAppWindowNavigation(options);
+      return;
+    }
+  }
+
+  appWindowOpenPromise = doOpenAppWindow(options);
+
+  try {
+    await appWindowOpenPromise;
+  } finally {
+    appWindowOpenPromise = null;
+  }
+};
+
 const toggleAppWindowMaximized = async (): Promise<boolean> => {
   const windowsApi = getWindowsApi();
-  if (!windowsApi || appWindowId === null) {
+  if (!windowsApi) {
     return false;
   }
 
+  const targetWindowId = (await getKnownAppWindowId()) ?? (await findExistingAppWindowId());
+  if (targetWindowId === null) return false;
+  appWindowId = targetWindowId;
+
   return await new Promise<boolean>((resolve, reject) => {
-    windowsApi.get(appWindowId!, (currentWindow) => {
+    windowsApi.get(targetWindowId, (currentWindow) => {
       const getError = chrome.runtime.lastError;
       if (getError) {
         reject(new Error(getError.message));
         return;
       }
 
-      const nextState = currentWindow.state === 'maximized' ? 'normal' : 'maximized';
+      const nextState = currentWindow.state === 'fullscreen' ? 'normal' : 'fullscreen';
 
-      windowsApi.update(appWindowId!, { state: nextState, focused: true }, () => {
+      windowsApi.update(targetWindowId, { state: nextState, focused: true }, () => {
         const updateError = chrome.runtime.lastError;
         if (updateError) {
           reject(new Error(updateError.message));
           return;
         }
 
-        resolve(nextState === 'maximized');
+        resolve(nextState === 'fullscreen');
       });
     });
   });
@@ -398,6 +516,28 @@ const handleResetTimer = async (): Promise<TimerState> => {
   return nextState;
 };
 
+const handleSkipShortBreak = async (): Promise<TimerState> => {
+  const { settings, timerState } = await readStoredData();
+
+  if (timerState.currentMode !== 'shortBreak') {
+    return timerState;
+  }
+
+  const nextState: TimerState = {
+    ...timerState,
+    isRunning: false,
+    isPaused: false,
+    revision: getNextTimerRevision(timerState),
+    currentMode: 'work',
+    remainingSeconds: getDurationSeconds(settings, 'work'),
+    targetEndTime: null
+  };
+
+  await setLocal({ timerState: nextState });
+  await clearAlarm();
+  return nextState;
+};
+
 const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState> => {
   const data = await readStoredData();
   const { settings } = data;
@@ -416,6 +556,7 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     const nextMode =
       completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';
     const nextDuration = getDurationSeconds(settings, nextMode);
+    const nextTargetEndTime = settings.autoStartBreaks ? Date.now() + nextDuration * 1000 : null;
 
     statistics = addSessionStatistics(
       statistics,
@@ -426,12 +567,12 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
 
     const nextState: TimerState = {
       ...timerState,
-      isRunning: false,
+      isRunning: settings.autoStartBreaks,
       isPaused: false,
       revision: getNextTimerRevision(timerState),
       currentMode: nextMode,
       remainingSeconds: nextDuration,
-      targetEndTime: null,
+      targetEndTime: nextTargetEndTime,
       activeTaskId,
       completedSessions
     };
@@ -441,6 +582,10 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
       statistics,
       timerState: nextState
     });
+
+    if (nextTargetEndTime) {
+      await createAlarm(nextTargetEndTime);
+    }
 
     return nextState;
   }
@@ -574,7 +719,11 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         sendResponse({ ok: true });
         return;
       case 'OPEN_APP_WINDOW':
-        await openAppWindow();
+        await openAppWindow(message.payload);
+        sendResponse({ ok: true });
+        return;
+      case 'APP_WINDOW_READY':
+        appWindowId = message.payload.windowId;
         sendResponse({ ok: true });
         return;
       case 'TOGGLE_APP_WINDOW_MAXIMIZED':
@@ -602,6 +751,12 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         sendResponse({
           ok: true,
           timerState: await enqueueTimerOperation(handleResetTimer)
+        });
+        return;
+      case 'POPUP_SKIP_SHORT_BREAK':
+        sendResponse({
+          ok: true,
+          timerState: await enqueueTimerOperation(handleSkipShortBreak)
         });
         return;
       default:

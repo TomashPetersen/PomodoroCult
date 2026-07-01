@@ -43,6 +43,10 @@ The popup remains the quick controller. The app window is opened from the popup 
 
 The larger app window also includes in-app controls for maximizing and restoring the window without relying on browser fullscreen prompts.
 
+## Timer settings
+
+Settings include an optional auto-start preference for break and rest timers. It is disabled by default. When enabled, a completed work timer immediately starts the next short break or long rest; the auto-started timer can still be paused, stopped, and a short break can be skipped.
+
 ## Local focus music
 
 The app window can play optional local focus loops during a running work timer:

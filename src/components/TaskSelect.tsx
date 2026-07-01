@@ -85,7 +85,7 @@ export const TaskSelect = () => {
           setOpen((value) => !value);
         }}
         className={cn(
-          'flex h-11 w-full items-center justify-between rounded-xl border px-3 text-left transition',
+          'flex h-[3.35rem] w-full items-center justify-between rounded-xl border px-3.5 text-left transition',
           'border-zinc-200 bg-[#fcfcfb] text-zinc-900 shadow-sm hover:border-zinc-300',
           'dark:border-zinc-800 dark:bg-[#161b22] dark:text-zinc-100 dark:hover:border-zinc-700'
         )}
@@ -97,7 +97,7 @@ export const TaskSelect = () => {
           </span>
           <span
             className={cn(
-              'block truncate text-[13px] leading-4',
+              'block truncate text-[15px] leading-5',
               !selectedTask && 'text-zinc-500 dark:text-zinc-400'
             )}
           >
@@ -108,7 +108,7 @@ export const TaskSelect = () => {
       </button>
 
       {open && (
-        <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[24rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-2 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
+        <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[26rem] overflow-visible rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-2.5 shadow-soft dark:border-zinc-800 dark:bg-[#161b22]">
           <div className="border-b border-zinc-200 px-2 pb-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
             <span className="block leading-4">{taskRelationshipLabel}</span>
             {!taskSelectionLocked && (
@@ -128,7 +128,7 @@ export const TaskSelect = () => {
             </div>
           )}
 
-          <div className="mt-2 max-h-[13.25rem] space-y-1 overflow-y-auto overflow-x-hidden pr-1">
+          <div className="mt-2 max-h-[15.5rem] space-y-1 overflow-y-auto overflow-x-hidden pr-1">
             {sortedTasks.length === 0 ? (
               <div className="rounded-xl bg-[#f0f3f6] px-3 py-3 text-sm text-zinc-500 dark:bg-[#21262d] dark:text-zinc-400">
                 {t(locale, 'taskEmpty')}
@@ -144,7 +144,7 @@ export const TaskSelect = () => {
                   <div
                     key={task.id}
                     className={cn(
-                      'group flex min-h-11 items-center gap-1 rounded-xl transition',
+                      'group flex min-h-12 items-center gap-1 rounded-xl transition',
                       selected && 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200',
                       highlighted && !selected && 'bg-rose-50/80 dark:bg-rose-500/10',
                       !selected && !highlighted && 'text-zinc-700 hover:bg-[#eef2f6] dark:text-zinc-200 dark:hover:bg-[#21262d]'
@@ -203,14 +203,14 @@ export const TaskSelect = () => {
                             setOpen(false);
                           }}
                           className={cn(
-                            'flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-2 pl-3 pr-2 text-left text-sm transition',
+                            'flex min-h-12 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-2 pl-3.5 pr-2 text-left text-[15px] transition',
                             taskSelectionLocked && 'cursor-not-allowed'
                           )}
                         >
                           <span
                             className={cn(
                               'line-clamp-2 min-w-0 break-words py-0.5 leading-5',
-                              task.title.length > 24 && 'text-xs'
+                              task.title.length > 24 && 'text-sm'
                             )}
                           >
                             {getTaskTitle(locale, task.id, task.title)}
@@ -315,7 +315,7 @@ export const TaskSelect = () => {
                 setQuickCreateOpen(true);
               }}
               className={cn(
-                'mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-700 transition hover:border-zinc-400 hover:bg-[#eef2f6] dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-[#21262d]',
+                'mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-700 transition hover:border-zinc-400 hover:bg-[#eef2f6] dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-[#21262d]',
                 taskSelectionLocked && 'cursor-not-allowed opacity-60'
               )}
             >

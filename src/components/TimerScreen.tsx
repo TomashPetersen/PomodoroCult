@@ -1,5 +1,5 @@
-import { AlertCircle, ExternalLink, Moon, Pause, Play, Settings, Square, Sun, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertCircle, ExternalLink, Moon, Music2, Pause, Play, Settings, SkipForward, Square, Sun, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { getTaskTitle, getTimerModeLabel, t } from '../lib/i18n';
 import { formatClock } from '../lib/format';
 import {
@@ -14,8 +14,11 @@ import {
 import { cn } from '../lib/ui';
 import { TimerMode } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
+import { ActionIconButton } from './ActionIconButton';
 import { TaskSelect } from './TaskSelect';
+import { FocusMusicPopover } from './FocusMusicPopover';
 import { TASK_TITLE_MAX_LENGTH } from '../lib/constants';
+import { TooltipBubble } from './TooltipBubble';
 
 interface TimerScreenProps {
   surface?: 'popup' | 'appWindow';
@@ -40,8 +43,11 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
   const pauseTimer = useAppStore((state) => state.pauseTimer);
   const openResetConfirm = useAppStore((state) => state.openResetConfirm);
   const openAppWindow = useAppStore((state) => state.openAppWindow);
+  const skipShortBreak = useAppStore((state) => state.skipShortBreak);
   const [now, setNow] = useState(() => Date.now());
   const [primaryActionPending, setPrimaryActionPending] = useState<'start' | 'pause' | null>(null);
+  const [musicPopoverOpen, setMusicPopoverOpen] = useState(false);
+  const musicPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const displayMode = selectedMode;
   const modeDuration = getDurationSeconds(settings, displayMode);
@@ -99,7 +105,25 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
     title: selectedTaskTitle,
     count: selectedTaskTomatoes
   });
-  const tomatoTooltipMaxWidth = `min(${TASK_TITLE_MAX_LENGTH + 24}ch, calc(100vw - 2rem))`;
+  const tomatoTooltipLabel = t(locale, 'tomatoesForTaskShort', {
+    title: selectedTaskTitle,
+    count: selectedTaskTomatoes
+  });
+  const tomatoTooltipMaxWidth = `min(${TASK_TITLE_MAX_LENGTH + 10}ch, calc(100vw - 2rem))`;
+  const showSkipShortBreak = displayMode === 'shortBreak' && timerState.currentMode === 'shortBreak';
+
+  useEffect(() => {
+    if (!musicPopoverOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!musicPopoverRef.current?.contains(event.target as Node)) {
+        setMusicPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [musicPopoverOpen]);
 
   useEffect(() => {
     if (!timerState.isRunning || !timerState.targetEndTime) {
@@ -138,15 +162,16 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className={cn('grid grid-cols-[42px_1fr_42px] items-center gap-2', isAppWindow ? 'h-11' : 'h-12')}>
-        <button
+        <ActionIconButton
           type="button"
           onClick={openSettings}
+          label={t(locale, 'settings')}
+          tooltipAlign="left"
+          tooltipSide="bottom"
           className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-          aria-label={t(locale, 'settings')}
-          title={t(locale, 'settings')}
         >
           <Settings className="h-5 w-5" />
-        </button>
+        </ActionIconButton>
 
         <div className="grid grid-cols-3 rounded-xl bg-[#eaeef2] p-1 dark:bg-[#161b22]">
           {tabs.map((tab) => {
@@ -196,19 +221,25 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
           })}
         </div>
 
-        <button
+        <ActionIconButton
           type="button"
           onClick={toggleTheme}
+          label={t(locale, 'theme')}
+          tooltipAlign="right"
+          tooltipSide="bottom"
           className="grid h-10 w-10 place-items-center rounded-xl text-zinc-600 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-          aria-label={t(locale, 'theme')}
-          title={t(locale, 'theme')}
         >
           {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </button>
+        </ActionIconButton>
       </header>
 
-      <section className={cn('flex flex-1 min-h-0 flex-col items-center justify-center', isAppWindow ? 'pt-1' : 'pt-3')}>
-        <div className={cn('relative aspect-square w-full', isAppWindow ? 'max-w-[19.5rem]' : 'max-w-[18rem]')}>
+      <section
+        className={cn(
+          'flex min-h-0 flex-col items-center',
+          isAppWindow ? 'flex-none pt-2' : 'flex-1 justify-center pt-1'
+        )}
+      >
+        <div className={cn('relative aspect-square w-full', isAppWindow ? 'max-w-[19.25rem]' : 'max-w-[17.25rem]')}>
           <svg className="h-full w-full -rotate-90" viewBox="0 0 258 258" aria-hidden="true">
             <circle
               cx="129"
@@ -272,7 +303,7 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
             <span
               className={cn(
                 'absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 font-mono tabular-nums font-semibold leading-none text-zinc-950 dark:text-white',
-                isAppWindow ? 'text-[clamp(3.2rem,6.2vw,4.05rem)]' : 'text-[clamp(2.9rem,14vw,4.6rem)]'
+                isAppWindow ? 'text-[clamp(3.1rem,4.9vw,3.65rem)]' : 'text-[clamp(2.9rem,14vw,4.6rem)]'
               )}
             >
               {formatClock(displaySeconds)}
@@ -287,28 +318,25 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
                 tabIndex={0}
               >
                 {selectedTaskTomatoLabel}
-                <span
-                  className={cn(
-                    'pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-40 hidden -translate-x-1/2 overflow-hidden text-ellipsis whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium leading-none shadow-soft',
-                    'border-zinc-200 bg-[#fcfcfb] text-zinc-700 dark:border-[#30363d] dark:bg-[#24292f] dark:text-[#f0f3f6]',
-                    'group-hover/tomato:block group-focus-visible/tomato:block'
-                  )}
-                  style={{ maxWidth: tomatoTooltipMaxWidth }}
-                  role="tooltip"
+                <TooltipBubble
+                  className="left-1/2 top-[calc(100%+0.45rem)] -translate-x-1/2 overflow-hidden text-ellipsis group-hover/tomato:block group-focus-visible/tomato:block"
+                  maxWidth={tomatoTooltipMaxWidth}
                 >
-                  {tomatoAriaLabel}
-                </span>
+                  {tomatoTooltipLabel}
+                </TooltipBubble>
               </span>
             )}
           </div>
         </div>
       </section>
 
-      <section className={cn('pb-2', isAppWindow ? 'space-y-2' : 'space-y-3')}>
-        <div className="flex items-center justify-center gap-3">
-          <button
+      <section className={cn(isAppWindow ? 'mt-3 space-y-2 pb-0' : 'space-y-2 pb-2')}>
+        <div className="flex items-center justify-center gap-2.5">
+          <ActionIconButton
             type="button"
             disabled={primaryDisabled}
+            label={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
+            tooltipAlign="center"
             onClick={
               primaryIsPause
                 ? async () => {
@@ -337,45 +365,83 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
                   }
             }
             className={cn(
-              'grid h-12 w-12 place-items-center rounded-full bg-[#24292f] text-[#f6f8fa] shadow-sm transition',
+              'grid place-items-center rounded-full bg-[#24292f] text-[#f6f8fa] shadow-sm transition',
+              isAppWindow ? 'h-11 w-11' : 'h-11 w-11',
               'hover:bg-[#32383f] dark:bg-[#f0f3f6] dark:text-[#161b22] dark:hover:bg-[#d8dee4]',
               primaryDisabled && 'cursor-not-allowed opacity-40',
               primaryBusy && 'pointer-events-none',
               startPulse && 'soft-pulse'
             )}
-            aria-label={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
-            title={primaryIsPause ? t(locale, 'pause') : t(locale, 'start')}
           >
             {primaryIsPause ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
-          </button>
+          </ActionIconButton>
 
-          <button
+          <ActionIconButton
             type="button"
             disabled={stopDisabled}
             onClick={openResetConfirm}
+            label={t(locale, 'stop')}
+            tooltipAlign="center"
             className={cn(
-              'grid h-12 w-12 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
+              'grid place-items-center rounded-full border border-zinc-200 text-zinc-700 transition',
+              isAppWindow ? 'h-11 w-11' : 'h-11 w-11',
               'hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
               stopDisabled && 'cursor-not-allowed opacity-40'
             )}
-            aria-label={t(locale, 'stop')}
-            title={t(locale, 'stop')}
           >
             <Square className="h-4 w-4 fill-current" />
-          </button>
+          </ActionIconButton>
+
+          {showSkipShortBreak && (
+            <ActionIconButton
+              type="button"
+              onClick={() => void skipShortBreak()}
+              label={t(locale, 'skipBreak')}
+              tooltipAlign="center"
+              className={cn(
+                'grid place-items-center rounded-full border border-zinc-200 text-zinc-700 transition hover:bg-[#eef2f6] hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
+                isAppWindow ? 'h-11 w-11' : 'h-11 w-11'
+              )}
+            >
+              <SkipForward className="h-4 w-4" />
+            </ActionIconButton>
+          )}
         </div>
 
         {surface === 'popup' && (
-          <button
-            type="button"
-            onClick={() => void openAppWindow()}
-            className="flex h-8 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-[#f5f7fa] hover:text-zinc-950 dark:border-[#30363d] dark:bg-[#161b22] dark:text-zinc-300 dark:hover:border-[#484f58] dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
-            aria-label={t(locale, 'openAppWindow')}
-            title={t(locale, 'openAppWindow')}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            <span>{t(locale, 'appWindowTitle')}</span>
-          </button>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <ActionIconButton
+              type="button"
+              onClick={() => void openAppWindow()}
+              label={t(locale, 'openAppWindow')}
+              tooltipAlign="center"
+              className="flex h-8 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-[#fcfcfb] px-3 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-[#f5f7fa] hover:text-zinc-950 dark:border-[#30363d] dark:bg-[#161b22] dark:text-zinc-300 dark:hover:border-[#484f58] dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span>{t(locale, 'appWindowTitle')}</span>
+            </ActionIconButton>
+
+            <div ref={musicPopoverRef} className="relative">
+              <ActionIconButton
+                type="button"
+                onClick={() => setMusicPopoverOpen((current) => !current)}
+                label={t(locale, 'focusMusic')}
+                tooltipAlign="right"
+                className={cn(
+                  'grid h-8 w-8 place-items-center rounded-xl border border-zinc-200 bg-[#fcfcfb] text-zinc-600 shadow-sm transition hover:border-zinc-300 hover:bg-[#f5f7fa] hover:text-zinc-950 dark:border-[#30363d] dark:bg-[#161b22] dark:text-zinc-300 dark:hover:border-[#484f58] dark:hover:bg-[#21262d] dark:hover:text-[#f0f3f6]',
+                  musicPopoverOpen && 'border-zinc-300 bg-[#f5f7fa] text-zinc-950 dark:border-[#484f58] dark:bg-[#21262d] dark:text-[#f0f3f6]'
+                )}
+              >
+                <Music2 className="h-3.5 w-3.5" />
+              </ActionIconButton>
+
+              {musicPopoverOpen && (
+                <div className="absolute bottom-[calc(100%+0.45rem)] right-0 z-50">
+                  <FocusMusicPopover />
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         <TaskSelect />
@@ -384,15 +450,15 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
           <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="min-w-0 flex-1 leading-5">{runtimeError}</p>
-            <button
+            <ActionIconButton
               type="button"
               onClick={clearRuntimeError}
+              label={t(locale, 'closeNotification')}
+              tooltipAlign="right"
               className="grid h-6 w-6 shrink-0 place-items-center rounded-md transition hover:bg-rose-100 dark:hover:bg-rose-500/10"
-              aria-label={t(locale, 'closeNotification')}
-              title={t(locale, 'closeNotification')}
             >
               <X className="h-4 w-4" />
-            </button>
+            </ActionIconButton>
           </div>
         )}
       </section>
