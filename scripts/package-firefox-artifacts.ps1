@@ -42,13 +42,13 @@ try {
   $xpiArchive.Dispose()
 }
 
-$excludedNames = @('.git', 'node_modules', 'dist', 'dist-firefox', 'artifacts')
+$excludedNames = @('.git', 'node_modules', 'dist', 'dist-firefox', 'artifacts', 'output', 'mock-data', 'promo')
 $sourceArchive = [System.IO.Compression.ZipFile]::Open($sourceZipPath, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
   foreach ($file in Get-ChildItem -Path $repoRoot -Recurse -File | Where-Object {
     $relative = $_.FullName.Substring($repoRoot.Length + 1)
     $firstSegment = ($relative -split '[\\/]', 2)[0]
-    $excludedNames -notcontains $firstSegment
+    ($excludedNames -notcontains $firstSegment) -and ($_.Extension -notin @('.xpi', '.zip'))
   }) {
     $entryName = $file.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(

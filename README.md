@@ -95,6 +95,7 @@ The popup UI, storage model, tasks, settings, and statistics behavior remain sha
 - Firefox store materials live in `docs/amo/`
 - Privacy policy page lives in `docs/privacy/index.md`
 - Firefox build and packaging notes live in `FIREFOX.md`
+- Android, donation, Pro, and cross-platform planning live in `EXECPLAN-platform-monetization.md`
 
 ## Release Checks
 

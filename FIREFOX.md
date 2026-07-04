@@ -72,3 +72,9 @@ The Firefox build includes:
 - `browser_specific_settings.gecko.data_collection_permissions`
 
 The Firefox package must not request the Chrome-only `offscreen` permission.
+
+## Firefox for Android planning
+
+Android support is tracked separately in `EXECPLAN-platform-monetization.md`.
+
+Do not enable Android compatibility in AMO by checkbox alone. First run Android compatibility lint, test on Firefox for Android, and confirm that desktop-only behavior such as the separate app window is feature-gated or replaced with a touch-friendly mobile flow.

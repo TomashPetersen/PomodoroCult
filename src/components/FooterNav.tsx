@@ -4,6 +4,7 @@ import { cn } from '../lib/ui';
 import { AppScreen } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 import { ActionIconButton } from './ActionIconButton';
+import { AppVersionBadge } from './AppVersionBadge';
 
 const items: Array<{ screen: AppScreen; icon: typeof Timer; labelKey: 'screenTimer' | 'screenTasks' | 'screenStats' }> = [
   { screen: 'timer', icon: Timer, labelKey: 'screenTimer' },
@@ -17,7 +18,7 @@ export const FooterNav = () => {
   const setScreen = useAppStore((state) => state.setScreen);
 
   return (
-    <footer className="grid h-16 shrink-0 grid-cols-3 border-t border-zinc-200 bg-[#f6f8fa]/96 px-6 py-2 dark:border-zinc-800 dark:bg-[#0d1117]/96">
+    <footer className="relative grid h-16 shrink-0 grid-cols-3 border-t border-zinc-200 bg-[#f6f8fa]/96 px-6 py-2 dark:border-zinc-800 dark:bg-[#0d1117]/96">
       {items.map((item) => {
         const Icon = item.icon;
         const active = selectedScreen === item.screen;
@@ -41,6 +42,7 @@ export const FooterNav = () => {
           </ActionIconButton>
         );
       })}
+      <AppVersionBadge className="absolute bottom-1 right-2" />
     </footer>
   );
 };

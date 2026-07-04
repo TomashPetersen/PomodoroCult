@@ -3,7 +3,7 @@ const baseManifest = {
   name: '__MSG_appName__',
   description: '__MSG_appDescription__',
   default_locale: 'en',
-  version: '1.1.0',
+  version: '1.1.2',
   action: {
     default_title: '__MSG_appName__',
     default_popup: 'index.html',

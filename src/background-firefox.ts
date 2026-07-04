@@ -22,6 +22,7 @@ import { Locale, RuntimeMessage, TimerMode, TimerState } from './lib/types';
 
 const COMPLETION_ALARM = 'pomodoro-cult-completion';
 const COMPLETION_NOTIFICATION_DELAY_MS = 500;
+const COMPLETION_NOTIFICATION_PREFIX = 'pomodoro-cult-completion-';
 const APP_WINDOW_URL = 'app.html';
 const APP_WINDOW_WIDTH = 1040;
 const APP_WINDOW_HEIGHT = 760;
@@ -148,6 +149,26 @@ const focusExistingAppWindow = async (windowId: number): Promise<boolean> => {
         return;
       }
       resolve(true);
+    });
+  });
+};
+
+const focusLastFirefoxWindow = async (): Promise<boolean> => {
+  const windowsApi = getWindowsApi();
+  if (!windowsApi) return false;
+
+  return await new Promise<boolean>((resolve) => {
+    windowsApi.getLastFocused({}, (windowInfo) => {
+      const getError = chrome.runtime.lastError;
+      if (getError || typeof windowInfo?.id !== 'number') {
+        resolve(false);
+        return;
+      }
+
+      windowsApi.update(windowInfo.id, { focused: true }, () => {
+        const updateError = chrome.runtime.lastError;
+        resolve(!updateError);
+      });
     });
   });
 };
@@ -368,7 +389,7 @@ const showCompletionNotification = async (
 
   await new Promise<void>((resolve) => {
     notifications.create(
-      `pomodoro-cult-${Date.now()}`,
+      `${COMPLETION_NOTIFICATION_PREFIX}${Date.now()}`,
       {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/firefox-tomato-icon-128.png'),
@@ -385,6 +406,27 @@ const showCompletionNotification = async (
       }
     );
   });
+};
+
+const handleCompletionNotificationClick = async (notificationId: string): Promise<void> => {
+  if (!notificationId.startsWith(COMPLETION_NOTIFICATION_PREFIX)) {
+    return;
+  }
+
+  const notifications = getNotificationsApi();
+  notifications?.clear(notificationId, () => {
+    void chrome.runtime.lastError;
+  });
+
+  try {
+    await openAppWindow();
+  } catch (error) {
+    console.warn(
+      'Could not open or focus app window from completion notification.',
+      error instanceof Error ? error.message : String(error)
+    );
+    await focusLastFirefoxWindow();
+  }
 };
 
 const buildRunningState = (
@@ -704,6 +746,11 @@ windowsApi?.onRemoved.addListener((windowId) => {
   if (windowId === appWindowId) {
     appWindowId = null;
   }
+});
+
+const notificationsApi = getNotificationsApi();
+notificationsApi?.onClicked.addListener((notificationId) => {
+  void handleCompletionNotificationClick(notificationId);
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {

@@ -1,6 +1,6 @@
 import { Clock3, History, TimerReset } from 'lucide-react';
 import { useMemo } from 'react';
-import { formatHoursMinutes } from '../lib/format';
+import { formatHoursMinutesLabel } from '../lib/format';
 import { getDateRangeBetween, getLocalDateKey, getPresetStatsRange } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
@@ -32,19 +32,19 @@ export const FocusSummaryCards = ({ className }: FocusSummaryCardsProps) => {
       {
         key: 'total',
         label: locale === 'ru' ? 'Всего фокуса' : 'Total focus',
-        value: formatHoursMinutes(totalSeconds),
+        value: formatHoursMinutesLabel(totalSeconds, locale),
         icon: History
       },
       {
         key: 'week',
         label: locale === 'ru' ? 'Фокус за неделю' : 'Focus this week',
-        value: formatHoursMinutes(weekSeconds),
+        value: formatHoursMinutesLabel(weekSeconds, locale),
         icon: TimerReset
       },
       {
         key: 'today',
         label: locale === 'ru' ? 'Фокус сегодня' : 'Focus today',
-        value: formatHoursMinutes(todaySeconds),
+        value: formatHoursMinutesLabel(todaySeconds, locale),
         icon: Clock3
       }
     ];
@@ -65,7 +65,7 @@ export const FocusSummaryCards = ({ className }: FocusSummaryCardsProps) => {
             </span>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-zinc-500 dark:text-zinc-400">{item.label}</p>
-              <p className="mt-0.5 truncate text-xl font-semibold tabular-nums text-zinc-950 dark:text-white">
+              <p className="mt-0.5 truncate text-lg font-semibold tabular-nums text-zinc-950 dark:text-white">
                 {item.value}
               </p>
             </div>

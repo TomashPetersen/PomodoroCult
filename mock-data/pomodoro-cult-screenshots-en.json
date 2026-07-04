@@ -1,0 +1,402 @@
+{
+  "app": "Pomodoro Cult",
+  "exportedAt": "2026-07-01T12:00:00.000Z",
+  "storageVersion": 2,
+  "data": {
+    "storageVersion": 2,
+    "settings": {
+      "workTime": 25,
+      "shortBreak": 5,
+      "longBreak": 15,
+      "longBreakInterval": 4,
+      "languagePreference": "en",
+      "autoStartBreaks": true,
+      "focusMusicEnabled": true,
+      "focusMusicVolume": 0.42,
+      "focusMusicTrack": "stream"
+    },
+    "tasks": [
+      {
+        "id": "task-no-task",
+        "title": "",
+        "createdAt": 0,
+        "usageCount": 4,
+        "lastUsed": 1782999000000,
+        "system": true,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-deep-work-sprint",
+        "title": "Deep Work Sprint",
+        "createdAt": 1782997200000,
+        "usageCount": 13,
+        "lastUsed": 1783000800000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-product-design",
+        "title": "Product Design",
+        "createdAt": 1782910800000,
+        "usageCount": 12,
+        "lastUsed": 1782998100000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-research-notes",
+        "title": "Research Notes",
+        "createdAt": 1782824400000,
+        "usageCount": 8,
+        "lastUsed": 1782912600000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-content-writing",
+        "title": "Content Writing",
+        "createdAt": 1782738000000,
+        "usageCount": 7,
+        "lastUsed": 1782909900000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-email-triage",
+        "title": "Email Triage",
+        "createdAt": 1782651600000,
+        "usageCount": 3,
+        "lastUsed": 1782826200000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-learning-backlog",
+        "title": "Learning Backlog",
+        "createdAt": 1782565200000,
+        "usageCount": 3,
+        "lastUsed": 1782741600000,
+        "system": false,
+        "archived": false,
+        "archivedAt": null
+      },
+      {
+        "id": "task-legacy-admin",
+        "title": "Legacy Admin",
+        "createdAt": 1782306000000,
+        "usageCount": 2,
+        "lastUsed": 1782392400000,
+        "system": false,
+        "archived": true,
+        "archivedAt": 1782478800000
+      }
+    ],
+    "timerState": {
+      "isRunning": false,
+      "isPaused": false,
+      "cycleStarted": false,
+      "revision": 0,
+      "currentMode": "work",
+      "remainingSeconds": 1500,
+      "targetEndTime": null,
+      "activeTaskId": "task-product-design",
+      "completedSessions": 0
+    },
+    "statistics": {
+      "2026-06-19": {
+        "date": "2026-06-19",
+        "sessions": 1,
+        "seconds": 1500,
+        "tasks": {
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1781884800000
+          }
+        }
+      },
+      "2026-06-20": {
+        "date": "2026-06-20",
+        "sessions": 3,
+        "seconds": 3900,
+        "tasks": {
+          "task-research-notes": {
+            "taskId": "task-research-notes",
+            "title": "Research Notes",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1781971200000
+          },
+          "task-email-triage": {
+            "taskId": "task-email-triage",
+            "title": "Email Triage",
+            "sessions": 1,
+            "seconds": 900,
+            "lastSessionAt": 1781973900000
+          }
+        }
+      },
+      "2026-06-21": {
+        "date": "2026-06-21",
+        "sessions": 2,
+        "seconds": 3000,
+        "tasks": {
+          "task-product-design": {
+            "taskId": "task-product-design",
+            "title": "Product Design",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782057600000
+          }
+        }
+      },
+      "2026-06-22": {
+        "date": "2026-06-22",
+        "sessions": 3,
+        "seconds": 4500,
+        "tasks": {
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782144000000
+          },
+          "task-content-writing": {
+            "taskId": "task-content-writing",
+            "title": "Content Writing",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782146700000
+          }
+        }
+      },
+      "2026-06-23": {
+        "date": "2026-06-23",
+        "sessions": 6,
+        "seconds": 9000,
+        "tasks": {
+          "task-no-task": {
+            "taskId": "task-no-task",
+            "title": "",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782230400000
+          },
+          "task-product-design": {
+            "taskId": "task-product-design",
+            "title": "Product Design",
+            "sessions": 3,
+            "seconds": 4500,
+            "lastSessionAt": 1782233100000
+          },
+          "task-research-notes": {
+            "taskId": "task-research-notes",
+            "title": "Research Notes",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782235800000
+          }
+        }
+      },
+      "2026-06-24": {
+        "date": "2026-06-24",
+        "sessions": 5,
+        "seconds": 7500,
+        "tasks": {
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 3,
+            "seconds": 4500,
+            "lastSessionAt": 1782316800000
+          },
+          "task-content-writing": {
+            "taskId": "task-content-writing",
+            "title": "Content Writing",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782319500000
+          }
+        }
+      },
+      "2026-06-25": {
+        "date": "2026-06-25",
+        "sessions": 2,
+        "seconds": 2400,
+        "tasks": {
+          "task-email-triage": {
+            "taskId": "task-email-triage",
+            "title": "Email Triage",
+            "sessions": 1,
+            "seconds": 900,
+            "lastSessionAt": 1782403200000
+          },
+          "task-learning-backlog": {
+            "taskId": "task-learning-backlog",
+            "title": "Learning Backlog",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782405900000
+          }
+        }
+      },
+      "2026-06-26": {
+        "date": "2026-06-26",
+        "sessions": 5,
+        "seconds": 7500,
+        "tasks": {
+          "task-product-design": {
+            "taskId": "task-product-design",
+            "title": "Product Design",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782489600000
+          },
+          "task-research-notes": {
+            "taskId": "task-research-notes",
+            "title": "Research Notes",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782492300000
+          },
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782495000000
+          }
+        }
+      },
+      "2026-06-27": {
+        "date": "2026-06-27",
+        "sessions": 4,
+        "seconds": 6000,
+        "tasks": {
+          "task-content-writing": {
+            "taskId": "task-content-writing",
+            "title": "Content Writing",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782576000000
+          },
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782578700000
+          }
+        }
+      },
+      "2026-06-28": {
+        "date": "2026-06-28",
+        "sessions": 3,
+        "seconds": 4500,
+        "tasks": {
+          "task-no-task": {
+            "taskId": "task-no-task",
+            "title": "",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782662400000
+          },
+          "task-learning-backlog": {
+            "taskId": "task-learning-backlog",
+            "title": "Learning Backlog",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782665100000
+          }
+        }
+      },
+      "2026-06-29": {
+        "date": "2026-06-29",
+        "sessions": 6,
+        "seconds": 8400,
+        "tasks": {
+          "task-product-design": {
+            "taskId": "task-product-design",
+            "title": "Product Design",
+            "sessions": 3,
+            "seconds": 4500,
+            "lastSessionAt": 1782748800000
+          },
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782751500000
+          },
+          "task-email-triage": {
+            "taskId": "task-email-triage",
+            "title": "Email Triage",
+            "sessions": 1,
+            "seconds": 900,
+            "lastSessionAt": 1782754200000
+          }
+        }
+      },
+      "2026-06-30": {
+        "date": "2026-06-30",
+        "sessions": 6,
+        "seconds": 9000,
+        "tasks": {
+          "task-research-notes": {
+            "taskId": "task-research-notes",
+            "title": "Research Notes",
+            "sessions": 3,
+            "seconds": 4500,
+            "lastSessionAt": 1782835200000
+          },
+          "task-content-writing": {
+            "taskId": "task-content-writing",
+            "title": "Content Writing",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782837900000
+          },
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782840600000
+          }
+        }
+      },
+      "2026-07-01": {
+        "date": "2026-07-01",
+        "sessions": 3,
+        "seconds": 4500,
+        "tasks": {
+          "task-product-design": {
+            "taskId": "task-product-design",
+            "title": "Product Design",
+            "sessions": 2,
+            "seconds": 3000,
+            "lastSessionAt": 1782921600000
+          },
+          "task-deep-work-sprint": {
+            "taskId": "task-deep-work-sprint",
+            "title": "Deep Work Sprint",
+            "sessions": 1,
+            "seconds": 1500,
+            "lastSessionAt": 1782924300000
+          }
+        }
+      }
+    },
+    "theme": "dark"
+  }
+}

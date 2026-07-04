@@ -16,6 +16,7 @@ import { TasksScreen } from './components/TasksScreen';
 import { TimerScreen } from './components/TimerScreen';
 import { TooltipBubble } from './components/TooltipBubble';
 import { ActionIconButton } from './components/ActionIconButton';
+import { AppVersionBadge } from './components/AppVersionBadge';
 import { formatDateRange } from './lib/format';
 import { cn } from './lib/ui';
 import { AppScreen, RuntimeMessage } from './lib/types';
@@ -335,6 +336,7 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
       <SettingsModal />
       {showChartPage && <StatsRangeModal />}
       <ResetConfirmModal />
+      <AppVersionBadge className="pointer-events-none absolute bottom-3 left-4 z-10" />
     </div>
   );
 };

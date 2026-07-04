@@ -123,7 +123,7 @@ export const getTimerLifecycleState = (
 };
 
 export const isTimerTaskLocked = (settings: Settings, timerState: TimerState): boolean => {
-  return hasStartedTimerCycle(settings, timerState);
+  return hasStartedTimerCycle(settings, timerState) && timerState.currentMode === 'work';
 };
 
 export const areTimerDurationsLocked = (settings: Settings, timerState: TimerState): boolean => {

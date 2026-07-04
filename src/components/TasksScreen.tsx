@@ -2,7 +2,7 @@ import { Archive, Check, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react
 import { FormEvent, useMemo, useState } from 'react';
 import { NO_TASK_ID, TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 import { getTaskTitle, t } from '../lib/i18n';
-import { getActiveTasks, getArchivedTasks, hasStartedTimerCycle, isTimerTaskLocked } from '../lib/storage';
+import { getActiveTasks, getArchivedTasks, isTimerTaskLocked } from '../lib/storage';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
 import { ActionIconButton } from './ActionIconButton';
@@ -32,7 +32,6 @@ export const TasksScreen = () => {
   const visibleTasks = tab === 'active' ? activeTasks : archivedTasks;
   const canAdd = title.trim().length > 0 && title.trim().length <= TASK_TITLE_MAX_LENGTH;
   const taskSelectionLocked = isTimerTaskLocked(settings, timerState);
-  const cycleStarted = hasStartedTimerCycle(settings, timerState);
   const lockMessage = t(locale, 'taskChangeRequiresStop');
   const pendingDeleteTask = pendingDeleteTaskId ? tasks.find((task) => task.id === pendingDeleteTaskId) : null;
   const pendingDeleteTitle = pendingDeleteTaskId
@@ -119,7 +118,7 @@ export const TasksScreen = () => {
             const highlighted = task.id === highlightedTaskId;
             const canSaveEdit =
               editingTitle.trim().length > 0 && editingTitle.trim().length <= TASK_TITLE_MAX_LENGTH;
-            const selectedTaskInCycle = task.id === timerState.activeTaskId && cycleStarted;
+            const selectedTaskInCycle = task.id === timerState.activeTaskId && taskSelectionLocked;
             return (
               <div
                 key={task.id}
