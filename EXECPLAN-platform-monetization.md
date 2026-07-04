@@ -14,8 +14,10 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - [x] 2026-07-04: Reviewed current Firefox manifest shape: desktop Firefox only, MV3, no host permissions, local storage, notifications, alarms.
 - [x] 2026-07-04: Chose the first safe path: audit and prepare Android compatibility before enabling Android in AMO.
 - [x] 2026-07-05: Rebuilt Firefox package and ran `web-ext lint` against `dist-firefox`; validation has 0 errors, 0 notices, and 4 documented warnings.
+- [x] 2026-07-05: Ran a desktop-code Android risk audit and identified the platform-sensitive UI/runtime areas that must be gated or manually tested before Android is enabled.
 - [ ] Android device/emulator smoke test completed.
-- [ ] Android API and UX audit completed.
+- [ ] Android device/emulator toolchain available on the release machine.
+- [ ] Android API and UX runtime audit completed on Firefox for Android.
 - [ ] Platform capability layer designed and implemented.
 - [ ] Donation URL and support entry finalized.
 - [ ] Pro feature gates designed without locking existing free features.
@@ -28,6 +30,8 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - The project already has export/import and storage migrations, which gives a good base for future platform transitions and user backups.
 - `web-ext lint` passes the current Firefox package with no blocking errors. The remaining warnings are known release-review items: two compatibility warnings for `browser_specific_settings.gecko.data_collection_permissions` with `strict_min_version: 115`, and two generated-bundle warnings for dynamic `innerHTML`.
 - The Firefox manifest still has no `gecko_android` block, which is intentional until the extension is tested on Firefox for Android.
+- `adb` is not available on the current workstation PATH, so Android runtime validation could not be completed locally yet. This is a tooling blocker, not a product pass.
+- Android-sensitive code paths found in the current desktop build: app-window management through `windows.*`, HTML Audio focus music, notification click handling, Blob/FileReader import/export, and hover/focus tooltip patterns.
 
 ## Decision Log
 
@@ -94,6 +98,14 @@ Current result on 2026-07-05:
 - `warnings`: 4
 - warnings to document if needed: `data_collection_permissions` minimum-version compatibility and generated `innerHTML` assignments in the built bundle.
 
+Confirm Android tooling is available:
+
+```powershell
+adb devices
+```
+
+If `adb` is not recognized, install Android Studio or Android Platform Tools, add `platform-tools` to `PATH`, then reopen the terminal.
+
 Then test on Android Firefox:
 
 ```powershell
@@ -109,6 +121,10 @@ Expected observations:
 - Timer state must survive popup close/backgrounding through persisted timestamps.
 - Notifications must either work or have a documented Android fallback.
 - Focus music must not autoplay unexpectedly on mobile.
+- The desktop app-window button must be hidden, disabled, or converted to an Android-safe extension-page flow.
+- Fullscreen and maximize controls must not rely on desktop-only `windows.*` behavior on Android.
+- Task, timer, and chart tooltips must work through tap/focus/help text, not hover-only interaction.
+- Export/import must be tested with Android's file picker behavior before it is advertised as supported on mobile.
 
 ### 2. Platform capability layer
 

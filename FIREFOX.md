@@ -84,9 +84,20 @@ Recommended audit flow:
 ```powershell
 npm.cmd run build:firefox
 npx.cmd web-ext lint --source-dir dist-firefox
+adb devices
 npx.cmd web-ext run -t firefox-android --source-dir dist-firefox --firefox-apk org.mozilla.firefox
 ```
 
 Use `org.mozilla.firefox_beta` or `org.mozilla.fenix` instead of `org.mozilla.firefox` when testing Firefox Beta or Nightly on Android.
+
+If `adb` is not recognized, install Android Studio or Android Platform Tools and add the `platform-tools` directory to `PATH` before running the Android smoke test.
+
+Android smoke testing must specifically cover desktop-sensitive features:
+
+- app-window open/maximize controls;
+- notification click behavior;
+- focus music start/stop behavior after mobile backgrounding;
+- import/export file picker behavior;
+- tap-friendly replacements for hover-only tooltips.
 
 Only add `browser_specific_settings.gecko_android` after the Android smoke test passes.
