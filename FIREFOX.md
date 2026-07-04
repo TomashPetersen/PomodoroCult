@@ -78,3 +78,15 @@ The Firefox package must not request the Chrome-only `offscreen` permission.
 Android support is tracked separately in `EXECPLAN-platform-monetization.md`.
 
 Do not enable Android compatibility in AMO by checkbox alone. First run Android compatibility lint, test on Firefox for Android, and confirm that desktop-only behavior such as the separate app window is feature-gated or replaced with a touch-friendly mobile flow.
+
+Recommended audit flow:
+
+```powershell
+npm.cmd run build:firefox
+npx.cmd web-ext lint --source-dir dist-firefox
+npx.cmd web-ext run -t firefox-android --source-dir dist-firefox --firefox-apk org.mozilla.firefox
+```
+
+Use `org.mozilla.firefox_beta` or `org.mozilla.fenix` instead of `org.mozilla.firefox` when testing Firefox Beta or Nightly on Android.
+
+Only add `browser_specific_settings.gecko_android` after the Android smoke test passes.

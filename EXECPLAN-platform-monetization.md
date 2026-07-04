@@ -13,6 +13,8 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - [x] 2026-07-04: Defined the strategic scope: Firefox Android compatibility, donations, Pro features, and future platform adapters.
 - [x] 2026-07-04: Reviewed current Firefox manifest shape: desktop Firefox only, MV3, no host permissions, local storage, notifications, alarms.
 - [x] 2026-07-04: Chose the first safe path: audit and prepare Android compatibility before enabling Android in AMO.
+- [x] 2026-07-05: Rebuilt Firefox package and ran `web-ext lint` against `dist-firefox`; validation has 0 errors, 0 notices, and 4 documented warnings.
+- [ ] Android device/emulator smoke test completed.
 - [ ] Android API and UX audit completed.
 - [ ] Platform capability layer designed and implemented.
 - [ ] Donation URL and support entry finalized.
@@ -24,6 +26,8 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Current Firefox build already has a desktop-only app-window flow based on `browser.windows.create`. That is useful on desktop, but must be treated as a desktop capability for Android.
 - The current permission set is intentionally small: `storage`, `notifications`, and `alarms`. Any monetization or Android change should avoid adding host permissions unless there is a clear product need.
 - The project already has export/import and storage migrations, which gives a good base for future platform transitions and user backups.
+- `web-ext lint` passes the current Firefox package with no blocking errors. The remaining warnings are known release-review items: two compatibility warnings for `browser_specific_settings.gecko.data_collection_permissions` with `strict_min_version: 115`, and two generated-bundle warnings for dynamic `innerHTML`.
+- The Firefox manifest still has no `gecko_android` block, which is intentional until the extension is tested on Firefox for Android.
 
 ## Decision Log
 
@@ -82,6 +86,13 @@ Run Android compatibility lint:
 ```powershell
 npx.cmd web-ext lint --source-dir dist-firefox
 ```
+
+Current result on 2026-07-05:
+
+- `errors`: 0
+- `notices`: 0
+- `warnings`: 4
+- warnings to document if needed: `data_collection_permissions` minimum-version compatibility and generated `innerHTML` assignments in the built bundle.
 
 Then test on Android Firefox:
 
@@ -214,6 +225,7 @@ Android readiness:
 - UI is touch-friendly and does not rely on hover.
 - Timer continuity and storage persistence work after backgrounding.
 - No desktop-only app-window control appears on Android.
+- AMO Android compatibility is not enabled until the Android smoke test passes.
 
 Donation readiness:
 
@@ -258,3 +270,5 @@ Potential future APIs:
 - Payment/licensing backend only if Pro becomes account-based.
 
 Revision note 2026-07-04: Created as the living roadmap for Android compatibility, donations, Pro features, and future cross-platform work.
+
+Revision note 2026-07-05: Recorded the first Android-readiness audit result: Firefox build and `web-ext lint` pass without errors, while Android runtime testing remains pending before adding `gecko_android`.
