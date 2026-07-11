@@ -1,4 +1,4 @@
-import { NO_TASK_ID } from './lib/constants';
+import { FOCUS_MUSIC_TRACKS, NO_TASK_ID } from './lib/constants';
 import { getTimerModeLabel, resolveLocale, t } from './lib/i18n';
 import {
   COMPLETION_CHIME_DURATION_MS,
@@ -18,7 +18,7 @@ import {
   setLocal,
   sortTasks
 } from './lib/storage';
-import { Locale, RuntimeMessage, TimerMode, TimerState } from './lib/types';
+import { Locale, RuntimeMessage, Settings, TimerMode, TimerState } from './lib/types';
 
 const COMPLETION_ALARM = 'pomodoro-cult-completion';
 const COMPLETION_NOTIFICATION_DELAY_MS = 500;
@@ -26,12 +26,417 @@ const COMPLETION_NOTIFICATION_PREFIX = 'pomodoro-cult-completion-';
 const APP_WINDOW_URL = 'app.html';
 const APP_WINDOW_WIDTH = 1040;
 const APP_WINDOW_HEIGHT = 760;
+const FOCUS_MUSIC_PLAY_TIMEOUT_MS = 2000;
+const FOCUS_MUSIC_RECONCILE_WAIT_MS = FOCUS_MUSIC_PLAY_TIMEOUT_MS + 250;
 
 let completionInFlight: Promise<void> | null = null;
 let lastCompletedKey: string | null = null;
 let timerOperationQueue: Promise<void> = Promise.resolve();
 let appWindowId: number | null = null;
 let appWindowOpenPromise: Promise<void> | null = null;
+
+const STREAM_CROSSFADE_SECONDS = 1.4;
+const STREAM_FADE_STEP_MS = 80;
+let focusMusicAudios: HTMLAudioElement[] = [];
+let focusMusicTrackId: Settings['focusMusicTrack'] | null = null;
+let focusMusicActiveAudioIndex = 0;
+let focusMusicScheduleId: number | null = null;
+let focusMusicFadeId: number | null = null;
+let focusMusicVolume = 0.45;
+let focusMusicReconcileGeneration = 0;
+let focusMusicReconcileRequested = false;
+let focusMusicReconcileInFlight: Promise<void> | null = null;
+const focusMusicAudioOwners = new WeakMap<HTMLAudioElement, number>();
+
+const clampFocusMusicVolume = (volume: number): number => Math.min(1, Math.max(0, volume));
+
+const clearFocusMusicTimers = (): void => {
+  if (focusMusicScheduleId !== null) {
+    window.clearTimeout(focusMusicScheduleId);
+    focusMusicScheduleId = null;
+  }
+
+  if (focusMusicFadeId !== null) {
+    window.clearInterval(focusMusicFadeId);
+    focusMusicFadeId = null;
+  }
+};
+
+const pauseFocusMusic = (): void => {
+  clearFocusMusicTimers();
+  focusMusicAudios.forEach((audio) => {
+    audio.pause();
+    audio.volume = clampFocusMusicVolume(focusMusicVolume);
+  });
+};
+
+const disposeFocusMusicAudios = (): void => {
+  pauseFocusMusic();
+  focusMusicAudios.forEach((audio) => {
+    audio.removeAttribute('src');
+    audio.load();
+    focusMusicAudioOwners.delete(audio);
+  });
+  focusMusicAudios = [];
+  focusMusicActiveAudioIndex = 0;
+  focusMusicTrackId = null;
+};
+
+const disposeFocusMusicAudio = (audio: HTMLAudioElement): void => {
+  const index = focusMusicAudios.indexOf(audio);
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+  focusMusicAudioOwners.delete(audio);
+
+  if (index < 0) return;
+
+  focusMusicAudios.splice(index, 1);
+  if (focusMusicAudios.length === 0) {
+    focusMusicActiveAudioIndex = 0;
+  } else if (index < focusMusicActiveAudioIndex) {
+    focusMusicActiveAudioIndex -= 1;
+  } else if (focusMusicActiveAudioIndex >= focusMusicAudios.length) {
+    focusMusicActiveAudioIndex = 0;
+  }
+};
+
+const normalizeFocusMusicOverlap = (): void => {
+  const playingIndexes = focusMusicAudios
+    .map((audio, index) => ({ audio, index }))
+    .filter(({ audio }) => !audio.paused);
+
+  if (playingIndexes.length === 0) return;
+
+  const active = playingIndexes.reduce((loudest, candidate) =>
+    candidate.audio.volume > loudest.audio.volume ? candidate : loudest
+  );
+
+  focusMusicActiveAudioIndex = active.index;
+  focusMusicAudioOwners.set(active.audio, focusMusicReconcileGeneration);
+  focusMusicAudios.forEach((audio, index) => {
+    if (index === active.index) {
+      audio.volume = clampFocusMusicVolume(focusMusicVolume);
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = clampFocusMusicVolume(focusMusicVolume);
+  });
+};
+
+const invalidateFocusMusicPlayback = (stopImmediately: boolean): number => {
+  focusMusicReconcileGeneration += 1;
+  clearFocusMusicTimers();
+
+  if (stopImmediately) {
+    pauseFocusMusic();
+  } else {
+    normalizeFocusMusicOverlap();
+  }
+
+  return focusMusicReconcileGeneration;
+};
+
+const ensureFocusMusicAudios = (settings: Settings): HTMLAudioElement[] => {
+  const track =
+    FOCUS_MUSIC_TRACKS.find((candidate) => candidate.id === settings.focusMusicTrack) ??
+    FOCUS_MUSIC_TRACKS[0];
+
+  focusMusicVolume = clampFocusMusicVolume(settings.focusMusicVolume);
+  const audioUrl = chrome.runtime.getURL(track.src);
+  const audioCount = track.id === 'stream' ? 2 : 1;
+  const createAudio = (): HTMLAudioElement => {
+    const audio = new Audio(audioUrl);
+    audio.loop = track.id !== 'stream';
+    audio.preload = 'auto';
+    audio.volume = focusMusicVolume;
+    return audio;
+  };
+
+  if (focusMusicTrackId !== track.id) {
+    disposeFocusMusicAudios();
+    focusMusicTrackId = track.id;
+    focusMusicAudios = Array.from({ length: audioCount }, createAudio);
+  } else {
+    while (focusMusicAudios.length < audioCount) {
+      focusMusicAudios.push(createAudio());
+    }
+    while (focusMusicAudios.length > audioCount) {
+      const extraAudio = focusMusicAudios[focusMusicAudios.length - 1];
+      disposeFocusMusicAudio(extraAudio);
+    }
+    focusMusicAudios.forEach((audio) => {
+      audio.volume = focusMusicVolume;
+    });
+  }
+
+  return focusMusicAudios;
+};
+
+type FocusMusicPlayResult = 'played' | 'failed' | 'stale' | 'timeout';
+
+const playFocusMusicAudio = async (
+  audio: HTMLAudioElement,
+  generation: number,
+  context: string
+): Promise<FocusMusicPlayResult> => {
+  let timedOut = false;
+  let timeoutId: number | null = null;
+  let playPromise: Promise<void>;
+
+  try {
+    focusMusicAudioOwners.set(audio, generation);
+    playPromise = audio.play();
+  } catch (error) {
+    console.warn(`Firefox focus music ${context} failed:`, error);
+    return 'failed';
+  }
+
+  void playPromise.then(() => {
+    if (!focusMusicAudios.includes(audio)) {
+      audio.pause();
+      audio.currentTime = 0;
+      return;
+    }
+
+    if (
+      (timedOut || generation !== focusMusicReconcileGeneration) &&
+      focusMusicAudioOwners.get(audio) === generation
+    ) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }).catch(() => {
+    // The awaited branch below records the playback failure once.
+  });
+
+  const result = await Promise.race<FocusMusicPlayResult>([
+    playPromise.then(() => 'played' as const).catch((error) => {
+      console.warn(`Firefox focus music ${context} failed:`, error);
+      return 'failed' as const;
+    }),
+    new Promise<FocusMusicPlayResult>((resolve) => {
+      timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        resolve('timeout');
+      }, FOCUS_MUSIC_PLAY_TIMEOUT_MS);
+    })
+  ]);
+
+  if (timeoutId !== null) {
+    window.clearTimeout(timeoutId);
+  }
+
+  if (result === 'timeout') {
+    console.warn(`Firefox focus music ${context} timed out.`);
+    if (
+      focusMusicAudios.includes(audio) &&
+      focusMusicAudioOwners.get(audio) === generation
+    ) {
+      disposeFocusMusicAudio(audio);
+    }
+    return result;
+  }
+
+  if (result === 'played' && generation !== focusMusicReconcileGeneration) {
+    if (focusMusicAudioOwners.get(audio) === generation) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    return 'stale';
+  }
+
+  return result;
+};
+
+const scheduleStreamCrossfade = (generation: number): void => {
+  clearFocusMusicTimers();
+  if (generation !== focusMusicReconcileGeneration) return;
+
+  const activeAudio = focusMusicAudios[focusMusicActiveAudioIndex];
+  if (!activeAudio || activeAudio.paused) return;
+
+  const duration = Number.isFinite(activeAudio.duration) ? activeAudio.duration : 0;
+  if (duration <= 0) {
+    focusMusicScheduleId = window.setTimeout(() => {
+      scheduleStreamCrossfade(generation);
+    }, 350);
+    return;
+  }
+
+  const delayMs = Math.max(
+    250,
+    (duration - activeAudio.currentTime - STREAM_CROSSFADE_SECONDS) * 1000
+  );
+
+  focusMusicScheduleId = window.setTimeout(() => {
+    if (generation !== focusMusicReconcileGeneration) return;
+
+    const nextIndex = focusMusicActiveAudioIndex === 0 ? 1 : 0;
+    const current = focusMusicAudios[focusMusicActiveAudioIndex];
+    const next = focusMusicAudios[nextIndex];
+    if (!current || !next || current.paused) return;
+
+    next.pause();
+    next.currentTime = 0;
+    next.volume = 0;
+
+    void playFocusMusicAudio(next, generation, 'crossfade').then((playResult) => {
+      if (playResult !== 'played' || generation !== focusMusicReconcileGeneration) {
+        if (focusMusicAudioOwners.get(next) === generation) {
+          next.pause();
+          next.currentTime = 0;
+        }
+        return;
+      }
+
+      const startedAt = performance.now();
+      const fadeId = window.setInterval(() => {
+        if (generation !== focusMusicReconcileGeneration) {
+          window.clearInterval(fadeId);
+          if (focusMusicFadeId === fadeId) {
+            focusMusicFadeId = null;
+          }
+          if (focusMusicAudioOwners.get(next) === generation) {
+            next.pause();
+            next.currentTime = 0;
+          }
+          return;
+        }
+
+        const progress = Math.min(
+          1,
+          (performance.now() - startedAt) / (STREAM_CROSSFADE_SECONDS * 1000)
+        );
+        current.volume = focusMusicVolume * (1 - progress);
+        next.volume = focusMusicVolume * progress;
+
+        if (progress < 1) return;
+        if (focusMusicFadeId !== null) {
+          window.clearInterval(focusMusicFadeId);
+          focusMusicFadeId = null;
+        }
+        current.pause();
+        current.currentTime = 0;
+        current.volume = focusMusicVolume;
+        focusMusicActiveAudioIndex = nextIndex;
+        scheduleStreamCrossfade(generation);
+      }, STREAM_FADE_STEP_MS);
+      focusMusicFadeId = fadeId;
+    });
+  }, delayMs);
+};
+
+const shouldPlayFocusMusic = (settings: Settings, timerState: TimerState): boolean =>
+  settings.focusMusicEnabled &&
+  timerState.currentMode === 'work' &&
+  timerState.isRunning &&
+  !timerState.isPaused &&
+  timerState.targetEndTime !== null &&
+  timerState.targetEndTime > Date.now();
+
+const syncFocusMusic = async (
+  settings: Settings,
+  timerState: TimerState,
+  generation: number
+): Promise<void> => {
+  if (generation !== focusMusicReconcileGeneration) return;
+
+  if (!shouldPlayFocusMusic(settings, timerState)) {
+    pauseFocusMusic();
+    return;
+  }
+
+  const audios = ensureFocusMusicAudios(settings);
+  if (generation !== focusMusicReconcileGeneration) return;
+
+  const activeAudio = audios[focusMusicActiveAudioIndex] ?? audios[0];
+  if (!activeAudio) return;
+
+  if (!activeAudio.paused) {
+    focusMusicAudioOwners.set(activeAudio, generation);
+    activeAudio.volume = clampFocusMusicVolume(focusMusicVolume);
+    if (settings.focusMusicTrack === 'stream') {
+      scheduleStreamCrossfade(generation);
+    }
+    return;
+  }
+
+  const playResult = await playFocusMusicAudio(activeAudio, generation, 'playback');
+  if (generation !== focusMusicReconcileGeneration) {
+    return;
+  }
+  if (playResult !== 'played') {
+    pauseFocusMusic();
+    return;
+  }
+
+  if (settings.focusMusicTrack === 'stream') {
+    scheduleStreamCrossfade(generation);
+  }
+};
+
+const runFocusMusicReconcileWorker = async (): Promise<void> => {
+  while (focusMusicReconcileRequested) {
+    focusMusicReconcileRequested = false;
+    const generation = focusMusicReconcileGeneration;
+
+    try {
+      const { settings, timerState } = await readStoredData();
+
+      if (generation !== focusMusicReconcileGeneration) {
+        focusMusicReconcileRequested = true;
+        continue;
+      }
+
+      await syncFocusMusic(settings, timerState, generation);
+    } catch (error) {
+      console.warn('Firefox focus music reconciliation failed:', error);
+      if (generation === focusMusicReconcileGeneration) {
+        pauseFocusMusic();
+      }
+    }
+  }
+};
+
+const ensureFocusMusicReconcileWorker = (): Promise<void> => {
+  if (!focusMusicReconcileInFlight) {
+    focusMusicReconcileInFlight = runFocusMusicReconcileWorker().finally(() => {
+      focusMusicReconcileInFlight = null;
+      if (focusMusicReconcileRequested) {
+        void ensureFocusMusicReconcileWorker();
+      }
+    });
+  }
+
+  return focusMusicReconcileInFlight;
+};
+
+const requestFocusMusicReconcile = (stopImmediately = false): Promise<void> => {
+  invalidateFocusMusicPlayback(stopImmediately);
+  focusMusicReconcileRequested = true;
+  return ensureFocusMusicReconcileWorker();
+};
+
+const requestFocusMusicReconcileBounded = async (stopImmediately = false): Promise<void> => {
+  const reconcile = requestFocusMusicReconcile(stopImmediately);
+  let timeoutId: number | null = null;
+
+  try {
+    await Promise.race([
+      reconcile,
+      new Promise<void>((resolve) => {
+        timeoutId = window.setTimeout(resolve, FOCUS_MUSIC_RECONCILE_WAIT_MS);
+      })
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+};
 
 const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
   const result = timerOperationQueue.then(operation, operation);
@@ -494,6 +899,7 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     timerState: nextState
   });
 
+  await requestFocusMusicReconcileBounded(mode !== 'work');
   await createAlarm(targetEndTime);
   return nextState;
 };
@@ -513,6 +919,7 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     });
   }
 
+  invalidateFocusMusicPlayback(true);
   const remainingSeconds = timerState.targetEndTime
     ? getRunningDisplaySeconds(timerState.targetEndTime)
     : timerState.remainingSeconds;
@@ -527,6 +934,7 @@ const handlePauseTimer = async (): Promise<TimerState> => {
 
   await setLocal({ timerState: nextState });
   await clearAlarm();
+  await requestFocusMusicReconcileBounded(true);
   return nextState;
 };
 
@@ -541,6 +949,7 @@ const handleResetTimer = async (): Promise<TimerState> => {
           remainingSeconds: 0
         })
       : storedTimerState;
+  invalidateFocusMusicPlayback(true);
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
@@ -555,6 +964,7 @@ const handleResetTimer = async (): Promise<TimerState> => {
 
   await setLocal({ timerState: nextState });
   await clearAlarm();
+  await requestFocusMusicReconcileBounded(true);
   return nextState;
 };
 
@@ -565,6 +975,7 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
     return timerState;
   }
 
+  invalidateFocusMusicPlayback(true);
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
@@ -577,6 +988,7 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
 
   await setLocal({ timerState: nextState });
   await clearAlarm();
+  await requestFocusMusicReconcileBounded(true);
   return nextState;
 };
 
@@ -588,6 +1000,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
   if (!timerState.isRunning) {
     return timerState;
   }
+
+  invalidateFocusMusicPlayback(true);
 
   if (timerState.currentMode === 'work') {
     tasks = ensureNoTask(tasks);
@@ -625,6 +1039,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
       timerState: nextState
     });
 
+    await requestFocusMusicReconcileBounded(true);
+
     if (nextTargetEndTime) {
       await createAlarm(nextTargetEndTime);
     }
@@ -644,6 +1060,7 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
   };
 
   await setLocal({ timerState: nextState });
+  await requestFocusMusicReconcileBounded(true);
   return nextState;
 };
 
@@ -727,13 +1144,47 @@ const resumeRunningTimer = async (): Promise<void> => {
   await createAlarm(timerState.targetEndTime);
 };
 
+let backgroundRuntimeSyncInFlight: Promise<void> | null = null;
+
+const syncBackgroundRuntime = (): Promise<void> => {
+  if (!backgroundRuntimeSyncInFlight) {
+    backgroundRuntimeSyncInFlight = (async () => {
+      await resumeRunningTimer();
+      await requestFocusMusicReconcileBounded();
+    })().finally(() => {
+      backgroundRuntimeSyncInFlight = null;
+    });
+  }
+
+  return backgroundRuntimeSyncInFlight;
+};
+
 chrome.runtime.onInstalled.addListener(() => {
-  void resumeRunningTimer();
+  void syncBackgroundRuntime();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void resumeRunningTimer();
+  void syncBackgroundRuntime();
 });
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || (!changes.settings && !changes.timerState)) return;
+
+  const settings = changes.settings?.newValue as Settings | undefined;
+  const timerState = changes.timerState?.newValue as TimerState | undefined;
+  const stopImmediately =
+    settings?.focusMusicEnabled === false ||
+    (timerState !== undefined &&
+      (!timerState.isRunning ||
+        timerState.isPaused ||
+        timerState.currentMode !== 'work' ||
+        timerState.targetEndTime === null ||
+        timerState.targetEndTime <= Date.now()));
+
+  void requestFocusMusicReconcile(stopImmediately);
+});
+
+void syncBackgroundRuntime();
 
 const alarmsApi = getAlarmsApi();
 alarmsApi?.onAlarm.addListener((alarm) => {
@@ -762,7 +1213,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
 
     switch (message.type) {
       case 'POPUP_ENSURE_READY':
-        await resumeRunningTimer();
+        await syncBackgroundRuntime();
         sendResponse({ ok: true });
         return;
       case 'OPEN_APP_WINDOW':
@@ -820,5 +1271,3 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
 
   return true;
 });
-
-void resumeRunningTimer();

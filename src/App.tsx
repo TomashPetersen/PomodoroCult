@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Calendar, HeartHandshake, Maximize2, Minimize2 } from 'lucide-react';
 import { AppWindowTodayWidget } from './components/AppWindowTodayWidget';
-import { FocusMusicController } from './components/FocusMusicController';
 import { FocusMusicPanel } from './components/FocusMusicPanel';
 import { FocusSummaryCards } from './components/FocusSummaryCards';
 import { DONATION_URL, QUICK_STATS_PERIODS } from './lib/constants';
@@ -149,7 +148,6 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
 
   return (
     <div className="relative flex h-full w-full overflow-hidden bg-[#f6f8fa] text-[#111827] dark:bg-[#0d1117] dark:text-[#f0f3f6]">
-      <FocusMusicController />
       {!hydrated ? (
         <div className="grid h-full w-full place-items-center text-sm text-zinc-500 dark:text-zinc-400">
           {t(locale, 'loading')}

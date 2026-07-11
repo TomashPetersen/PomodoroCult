@@ -49,13 +49,13 @@ Settings include an optional auto-start preference for break and rest timers. It
 
 ## Local focus music
 
-The app window can play optional local focus loops during a running work timer:
+The compact popup and app window control one optional background-owned focus-music player during a running work timer:
 
 - stream
 - birds
 - ticking clock
 
-The loops are bundled under `public/sounds/`, disabled by default, and never loaded from a remote URL.
+The loops are bundled under `public/sounds/`, disabled by default, and never loaded from a remote URL. Playback is owned by `src/background-firefox.ts`, so closing the compact popup does not stop the selected loop and opening both UI surfaces does not create duplicate audio.
 
 ## Firefox-specific files
 
@@ -77,7 +77,15 @@ The Firefox package must not request the Chrome-only `offscreen` permission.
 
 Android support is tracked separately in `EXECPLAN-platform-monetization.md`.
 
-Do not enable Android compatibility in AMO by checkbox alone. First run Android compatibility lint, test on Firefox for Android, and confirm that desktop-only behavior such as the separate app window is feature-gated or replaced with a touch-friendly mobile flow.
+Do not enable Android compatibility in AMO by checkbox alone. First finalize the donation/Pro product boundaries in `docs/pro-roadmap.md`, then run Android compatibility lint, test on Firefox for Android, and confirm that desktop-only behavior such as the separate app window is feature-gated or replaced with a touch-friendly mobile flow.
+
+The current strategic order is:
+
+1. define Free / Donation / Pro feature boundaries;
+2. choose a verified donation provider and URL, or keep donation UI disabled;
+3. add platform capability gates;
+4. test Firefox for Android on a real device or emulator;
+5. only then add Android compatibility metadata and enable Android in AMO.
 
 Recommended audit flow:
 
@@ -101,3 +109,15 @@ Android smoke testing must specifically cover desktop-sensitive features:
 - tap-friendly replacements for hover-only tooltips.
 
 Only add `browser_specific_settings.gecko_android` after the Android smoke test passes.
+
+## Donations and Pro planning
+
+Donation and Pro feature planning lives in `docs/pro-roadmap.md` and is tracked through `EXECPLAN-platform-monetization.md`.
+
+Current release direction:
+
+- keep the existing timer, tasks, local statistics, app window, import/export, bilingual UI, notifications, and basic focus music free;
+- add donations only through a provider-agnostic external support URL after the payment route is manually verified;
+- keep payment data, provider SDKs, analytics, and hidden network calls out of the extension;
+- start Pro with local-only features such as advanced analytics review, per-task timer profiles, templates, reports, extra sound packs, and extra themes;
+- defer account licensing, cloud sync, and cross-device Pro state until there is a validated payment and support model.

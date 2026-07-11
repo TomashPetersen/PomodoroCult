@@ -21,6 +21,7 @@ Focus music notes:
 - the three focus loops are bundled local audio files: stream, birds, and ticking clock
 - focus audio sources and licenses are documented in `docs/assets.md`
 - music plays only during a running work timer when enabled by the user
+- one background-page player owns focus music so popup close/reopen and the separate app window do not create duplicate playback
 - no remote audio is loaded
 
 Required permission:
