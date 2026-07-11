@@ -8,13 +8,18 @@ import {
 } from './lib/completionChime';
 import {
   addSessionStatistics,
+  createCycleId,
+  createSessionEvent,
   ensureNoTask,
   getDurationSeconds,
   getNextTimerRevision,
   getRunningDisplaySeconds,
   getStartDurationSeconds,
   getStartTargetEndTime,
+  isResumingPausedTimer,
   readStoredData,
+  removeTaskSessionEvents,
+  removeTaskStatistics,
   setLocal,
   sortTasks
 } from './lib/storage';
@@ -839,7 +844,9 @@ const buildRunningState = (
   mode: TimerMode,
   durationSeconds: number,
   targetEndTime: number,
-  activeTaskId: string | null
+  activeTaskId: string | null,
+  cycleId: string,
+  cycleStartedAt: number | null
 ): TimerState => ({
   ...timerState,
   isRunning: true,
@@ -849,6 +856,8 @@ const buildRunningState = (
   currentMode: mode,
   remainingSeconds: durationSeconds,
   targetEndTime,
+  cycleId,
+  cycleStartedAt,
   activeTaskId
 });
 
@@ -858,7 +867,16 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
   let { tasks, timerState } = data;
 
   if (timerState.isRunning && timerState.targetEndTime) {
-    await createAlarm(timerState.targetEndTime);
+    const targetEndTime = timerState.targetEndTime;
+    if (!timerState.cycleId) {
+      timerState = {
+        ...timerState,
+        cycleId: createCycleId(),
+        revision: getNextTimerRevision(timerState)
+      };
+      await setLocal({ timerState });
+    }
+    await createAlarm(targetEndTime);
     return timerState;
   }
 
@@ -886,12 +904,17 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
 
   const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
   const targetEndTime = getStartTargetEndTime(settings, timerState, mode, startedAt);
+  const isResume = isResumingPausedTimer(settings, timerState, mode);
+  const cycleId = isResume && timerState.cycleId ? timerState.cycleId : createCycleId();
+  const cycleStartedAt = isResume ? timerState.cycleStartedAt : startedAt;
   const nextState = buildRunningState(
     timerState,
     mode,
     durationSeconds,
     targetEndTime,
-    activeTaskId ?? null
+    activeTaskId ?? null,
+    cycleId,
+    cycleStartedAt
   );
 
   await setLocal({
@@ -959,6 +982,8 @@ const handleResetTimer = async (): Promise<TimerState> => {
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null,
     completedSessions: 0
   };
 
@@ -983,7 +1008,9 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
     revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
-    targetEndTime: null
+    targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null
   };
 
   await setLocal({ timerState: nextState });
@@ -995,10 +1022,17 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
 const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState> => {
   const data = await readStoredData();
   const { settings } = data;
-  let { tasks, statistics } = data;
+  let { tasks, statistics, sessionEvents } = data;
+  const storedTimerState = data.timerState;
 
-  if (!timerState.isRunning) {
-    return timerState;
+  if (
+    !timerState.isRunning ||
+    !timerState.cycleId ||
+    storedTimerState.cycleId !== timerState.cycleId ||
+    storedTimerState.currentMode !== timerState.currentMode ||
+    !storedTimerState.isRunning
+  ) {
+    return storedTimerState;
   }
 
   invalidateFocusMusicPlayback(true);
@@ -1012,14 +1046,32 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     const nextMode =
       completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';
     const nextDuration = getDurationSeconds(settings, nextMode);
-    const nextTargetEndTime = settings.autoStartBreaks ? Date.now() + nextDuration * 1000 : null;
+    const completedAt = Date.now();
+    const durationSeconds = getDurationSeconds(settings, 'work');
+    const nextTargetEndTime = settings.autoStartBreaks
+      ? completedAt + nextDuration * 1000
+      : null;
+    const nextCycleId = nextTargetEndTime ? createCycleId() : null;
 
     statistics = addSessionStatistics(
       statistics,
       activeTaskId,
       taskTitle,
-      getDurationSeconds(settings, 'work')
+      durationSeconds,
+      completedAt
     );
+    sessionEvents = [
+      ...sessionEvents,
+      createSessionEvent({
+        cycleId: timerState.cycleId,
+        taskId: activeTaskId,
+        taskTitleSnapshot: taskTitle,
+        focusModeId: null,
+        cycleStartedAt: timerState.cycleStartedAt,
+        completedAt,
+        durationSeconds
+      })
+    ];
 
     const nextState: TimerState = {
       ...timerState,
@@ -1029,6 +1081,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
       currentMode: nextMode,
       remainingSeconds: nextDuration,
       targetEndTime: nextTargetEndTime,
+      cycleId: nextCycleId,
+      cycleStartedAt: nextTargetEndTime ? completedAt : null,
       activeTaskId,
       completedSessions
     };
@@ -1036,6 +1090,7 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     await setLocal({
       tasks,
       statistics,
+      sessionEvents,
       timerState: nextState
     });
 
@@ -1056,12 +1111,22 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null,
     activeTaskId: timerState.activeTaskId
   };
 
   await setLocal({ timerState: nextState });
   await requestFocusMusicReconcileBounded(true);
   return nextState;
+};
+
+const handleDeleteTaskStatistics = async (taskId: string) => {
+  const { statistics, sessionEvents } = await readStoredData();
+  const nextStatistics = removeTaskStatistics(statistics, taskId);
+  const nextSessionEvents = removeTaskSessionEvents(sessionEvents, taskId);
+  await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
+  return { statistics: nextStatistics, sessionEvents: nextSessionEvents };
 };
 
 const completeExpiredTimer = async (): Promise<void> => {
@@ -1084,7 +1149,7 @@ const completeExpiredTimer = async (): Promise<void> => {
         return null;
       }
 
-      const completionKey = `${timerState.currentMode}:${timerState.targetEndTime}:${timerState.completedSessions}`;
+      const completionKey = `${timerState.cycleId}:${timerState.currentMode}:${timerState.targetEndTime}`;
       if (lastCompletedKey === completionKey) {
         await clearAlarm();
         return null;
@@ -1129,7 +1194,17 @@ const completeExpiredTimer = async (): Promise<void> => {
 };
 
 const resumeRunningTimer = async (): Promise<void> => {
-  const { timerState } = await readStoredData();
+  const { timerState: storedTimerState } = await readStoredData();
+  let timerState = storedTimerState;
+
+  if (timerState.isRunning && !timerState.cycleId) {
+    timerState = {
+      ...timerState,
+      cycleId: createCycleId(),
+      revision: getNextTimerRevision(timerState)
+    };
+    await setLocal({ timerState });
+  }
 
   if (!timerState.isRunning || !timerState.targetEndTime) {
     await clearAlarm();
@@ -1257,6 +1332,13 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
           timerState: await enqueueTimerOperation(handleSkipShortBreak)
         });
         return;
+      case 'DELETE_TASK_STATISTICS': {
+        const result = await enqueueTimerOperation(() =>
+          handleDeleteTaskStatistics(message.payload.taskId)
+        );
+        sendResponse({ ok: true, ...result });
+        return;
+      }
       default:
         sendResponse({ ok: true, ignored: true });
     }

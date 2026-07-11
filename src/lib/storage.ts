@@ -5,6 +5,7 @@ import {
   SETTINGS_FIELDS,
   TASK_TITLE_MAX_LENGTH
 } from './constants';
+import { normalizeFocusModes } from './focusModes';
 import { getTaskTitle } from './i18n';
 import {
   CURRENT_STORAGE_VERSION,
@@ -15,6 +16,7 @@ import {
   MigrationBackup,
   PersistedStorage,
   Settings,
+  SessionEvent,
   Statistics,
   StoredData,
   Task,
@@ -32,6 +34,8 @@ export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerS
   currentMode: 'work',
   remainingSeconds: settings.workTime * 60,
   targetEndTime: null,
+  cycleId: null,
+  cycleStartedAt: null,
   activeTaskId: null,
   completedSessions: 0
 });
@@ -143,6 +147,14 @@ export const createId = (): string => {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
+export const createCycleId = (): string => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `cycle-${crypto.randomUUID()}`;
+  }
+
+  return `cycle-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 type NumericSettingKey = (typeof SETTINGS_FIELDS)[number]['key'];
 
 export const createTask = (title: string, system = false): Task => ({
@@ -153,7 +165,8 @@ export const createTask = (title: string, system = false): Task => ({
   lastUsed: 0,
   system,
   archived: false,
-  archivedAt: null
+  archivedAt: null,
+  focusModeId: null
 });
 
 export const createNoTask = (): Task => ({
@@ -164,7 +177,8 @@ export const createNoTask = (): Task => ({
   lastUsed: 0,
   system: true,
   archived: false,
-  archivedAt: null
+  archivedAt: null,
+  focusModeId: null
 });
 
 const normalizeSettingNumber = (settings: Partial<Settings> | undefined, key: NumericSettingKey): number => {
@@ -202,7 +216,7 @@ export const normalizeSettings = (settings?: Partial<Settings>): Settings => {
   };
 };
 
-export const normalizeTasks = (tasks?: Task[]): Task[] => {
+export const normalizeTasks = (tasks?: Task[], validFocusModeIds?: Set<string>): Task[] => {
   const seen = new Set<string>();
   const normalized: Task[] = [];
 
@@ -216,6 +230,11 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
     const title = clampTaskTitle(typeof task.title === 'string' ? task.title : '');
     const rawId = typeof task.id === 'string' ? task.id : '';
     const id = rawId === NO_TASK_ID || task.system ? NO_TASK_ID : rawId || createId();
+    const rawFocusModeId = typeof task.focusModeId === 'string' ? task.focusModeId.trim() : '';
+    const focusModeId = rawFocusModeId &&
+      (!validFocusModeIds || validFocusModeIds.has(rawFocusModeId))
+      ? rawFocusModeId
+      : null;
 
     if (id !== NO_TASK_ID && !title) continue;
     if (seen.has(id)) continue;
@@ -234,7 +253,8 @@ export const normalizeTasks = (tasks?: Task[]): Task[] => {
       lastUsed: Math.max(0, Number(task.lastUsed) || 0),
       system: id === NO_TASK_ID || Boolean(task.system),
       archived: id === NO_TASK_ID ? false : Boolean(task.archived),
-      archivedAt: Number(task.archivedAt) > 0 ? Number(task.archivedAt) : null
+      archivedAt: Number(task.archivedAt) > 0 ? Number(task.archivedAt) : null,
+      focusModeId: id === NO_TASK_ID ? null : focusModeId
     });
   }
 
@@ -248,6 +268,112 @@ export const normalizeStatistics = (statistics?: Statistics): Statistics => {
 
   return statistics;
 };
+
+export const normalizeSessionEvents = (sessionEvents?: SessionEvent[]): SessionEvent[] => {
+  if (!Array.isArray(sessionEvents)) return [];
+
+  const seen = new Set<string>();
+  const normalized: SessionEvent[] = [];
+
+  for (const event of sessionEvents) {
+    if (!event || typeof event !== 'object') continue;
+
+    const id = typeof event.id === 'string' ? event.id.trim() : '';
+    const taskId = typeof event.taskId === 'string' ? event.taskId.trim() : '';
+    const startedAt = Math.floor(Number(event.startedAt));
+    const completedAt = Math.floor(Number(event.completedAt));
+    const durationSeconds = Math.floor(Number(event.durationSeconds));
+
+    if (
+      !id ||
+      !taskId ||
+      seen.has(id) ||
+      !Number.isFinite(startedAt) ||
+      !Number.isFinite(completedAt) ||
+      !Number.isFinite(durationSeconds) ||
+      startedAt < 0 ||
+      completedAt < startedAt ||
+      durationSeconds <= 0
+    ) {
+      continue;
+    }
+
+    normalized.push({
+      id,
+      taskId,
+      taskTitleSnapshot: clampTaskTitle(
+        typeof event.taskTitleSnapshot === 'string' ? event.taskTitleSnapshot : ''
+      ),
+      focusModeId:
+        typeof event.focusModeId === 'string' && event.focusModeId.trim()
+          ? event.focusModeId.trim()
+          : null,
+      startedAt,
+      completedAt,
+      durationSeconds
+    });
+    seen.add(id);
+  }
+
+  return normalized.sort(
+    (left, right) => left.completedAt - right.completedAt || left.id.localeCompare(right.id)
+  );
+};
+
+interface CreateSessionEventInput {
+  cycleId: string | null;
+  taskId: string;
+  taskTitleSnapshot: string;
+  focusModeId: string | null;
+  cycleStartedAt: number | null;
+  completedAt: number;
+  durationSeconds: number;
+}
+
+export const createSessionEvent = ({
+  cycleId,
+  taskId,
+  taskTitleSnapshot,
+  focusModeId,
+  cycleStartedAt,
+  completedAt,
+  durationSeconds
+}: CreateSessionEventInput): SessionEvent => {
+  const normalizedCompletedAt = Math.max(0, Math.floor(completedAt));
+  const normalizedDuration = Math.max(1, Math.floor(durationSeconds));
+  const fallbackStartedAt = Math.max(
+    0,
+    normalizedCompletedAt - normalizedDuration * 1000
+  );
+  const normalizedCycleStartedAt =
+    typeof cycleStartedAt === 'number' && Number.isFinite(cycleStartedAt)
+      ? Math.floor(cycleStartedAt)
+      : null;
+  const startedAt =
+    normalizedCycleStartedAt !== null && normalizedCycleStartedAt >= 0
+      ? Math.min(normalizedCompletedAt, normalizedCycleStartedAt)
+      : fallbackStartedAt;
+  const fallbackId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${normalizedCompletedAt}-${Math.random().toString(16).slice(2)}`;
+
+  return {
+    id: cycleId ? `session-${cycleId}` : `session-${fallbackId}`,
+    taskId,
+    taskTitleSnapshot: clampTaskTitle(taskTitleSnapshot),
+    focusModeId,
+    startedAt,
+    completedAt: normalizedCompletedAt,
+    durationSeconds: normalizedDuration
+  };
+};
+
+export const removeTaskSessionEvents = (
+  sessionEvents: SessionEvent[],
+  taskId: string
+): SessionEvent[] =>
+  normalizeSessionEvents(sessionEvents).filter((event) => event.taskId !== taskId);
 
 export const ensureNoTask = (tasks: Task[]): Task[] => {
   const normalized = normalizeTasks(tasks);
@@ -266,7 +392,8 @@ export const ensureNoTask = (tasks: Task[]): Task[] => {
             createdAt: 0,
             system: true,
             archived: false,
-            archivedAt: null
+            archivedAt: null,
+            focusModeId: null
           }
         : task
     )
@@ -517,6 +644,8 @@ export const setLocal = (value: Partial<PersistedStorage>): Promise<void> =>
 
 export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): StoredData => {
   const settings = normalizeSettings(stored.settings);
+  const focusModes = normalizeFocusModes(stored.focusModes);
+  const validFocusModeIds = new Set(focusModes.map((mode) => mode.id));
   const timerDefaults = defaultTimerState(settings);
   const storedMode = stored.timerState?.currentMode ?? timerDefaults.currentMode;
   const storedRemainingSeconds =
@@ -544,6 +673,16 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     remainingSeconds: storedRemainingSeconds,
     completedSessions: storedCompletedSessions,
     targetEndTime: stored.timerState?.targetEndTime ?? null,
+    cycleId:
+      typeof stored.timerState?.cycleId === 'string' && stored.timerState.cycleId.trim()
+        ? stored.timerState.cycleId.trim()
+        : null,
+    cycleStartedAt:
+      typeof stored.timerState?.cycleStartedAt === 'number' &&
+      Number.isFinite(stored.timerState.cycleStartedAt) &&
+      stored.timerState.cycleStartedAt >= 0
+        ? Math.floor(stored.timerState.cycleStartedAt)
+        : null,
     activeTaskId: stored.timerState?.activeTaskId ?? null,
     isRunning: Boolean(stored.timerState?.isRunning),
     isPaused:
@@ -560,9 +699,11 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
   return {
     storageVersion: CURRENT_STORAGE_VERSION,
     settings,
-    tasks: normalizeTasks(stored.tasks),
+    tasks: normalizeTasks(stored.tasks, validFocusModeIds),
     timerState,
     statistics: normalizeStatistics(stored.statistics),
+    focusModes,
+    sessionEvents: normalizeSessionEvents(stored.sessionEvents),
     theme: stored.theme === 'dark' ? 'dark' : 'light'
   };
 };
@@ -627,6 +768,8 @@ const hasImportableStorageKey = (value: Record<string, unknown>): boolean =>
   'tasks' in value ||
   'timerState' in value ||
   'statistics' in value ||
+  'focusModes' in value ||
+  'sessionEvents' in value ||
   'theme' in value;
 
 export const parseExportDocument = (raw: string): StoredData => {

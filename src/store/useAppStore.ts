@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { NO_TASK_ID } from '../lib/constants';
+import { normalizeFocusModes } from '../lib/focusModes';
 import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
 import {
   applyThemeClass,
@@ -22,7 +23,9 @@ import {
   initializeStorage,
   importStoredData,
   isTimerTaskLocked,
+  normalizeSessionEvents,
   normalizeSettings,
+  removeTaskSessionEvents,
   removeTaskStatistics,
   setLocal,
   sortTasks
@@ -34,6 +37,7 @@ import {
   Locale,
   FocusMusicTrack,
   RuntimeMessage,
+  SessionEvent,
   Settings,
   Statistics,
   StatsPeriod,
@@ -52,6 +56,8 @@ interface RuntimeResponse {
   error?: string;
   ignored?: boolean;
   timerState?: TimerState;
+  statistics?: Statistics;
+  sessionEvents?: SessionEvent[];
 }
 
 interface AppStore extends StoredData {
@@ -202,6 +208,8 @@ const initialData: StoredData = {
   tasks: [],
   timerState: defaultTimerState(DEFAULT_SETTINGS),
   statistics: {},
+  focusModes: normalizeFocusModes(),
+  sessionEvents: [],
   theme: 'light'
 };
 
@@ -278,6 +286,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
             if (changes.statistics?.newValue) {
               patch.statistics = changes.statistics.newValue as Statistics;
+            }
+
+            if (changes.focusModes?.newValue !== undefined) {
+              patch.focusModes = normalizeFocusModes(changes.focusModes.newValue);
+            }
+
+            if (changes.sessionEvents?.newValue !== undefined) {
+              patch.sessionEvents = normalizeSessionEvents(changes.sessionEvents.newValue);
             }
 
             if (changes.theme?.newValue) {
@@ -883,19 +899,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closeStatsDeleteConfirm: () => set({ statsDeleteConfirmTaskId: null }),
 
   confirmStatsDelete: async () => {
-    const { statistics, statsDeleteConfirmTaskId, selectedStatsTaskId } = get();
+    const { statistics, sessionEvents, statsDeleteConfirmTaskId, selectedStatsTaskId } = get();
     if (!statsDeleteConfirmTaskId) return;
 
-    const nextStatistics = removeTaskStatistics(statistics, statsDeleteConfirmTaskId);
+    const response = await sendRuntimeMessage({
+      type: 'DELETE_TASK_STATISTICS',
+      payload: { taskId: statsDeleteConfirmTaskId }
+    });
+    if (response && !response.ok) {
+      throw new Error(response.error || 'Unable to delete task statistics.');
+    }
+
+    const nextStatistics = response?.statistics ??
+      removeTaskStatistics(statistics, statsDeleteConfirmTaskId);
+    const nextSessionEvents = response?.sessionEvents ??
+      removeTaskSessionEvents(sessionEvents, statsDeleteConfirmTaskId);
+
+    if (!response) {
+      await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
+    }
 
     set({
       statistics: nextStatistics,
+      sessionEvents: nextSessionEvents,
       statsDeleteConfirmTaskId: null,
       selectedStatsTaskId:
         selectedStatsTaskId === statsDeleteConfirmTaskId ? null : selectedStatsTaskId
     });
 
-    await setLocal({ statistics: nextStatistics });
   },
 
   selectStatsTask: (taskId) =>

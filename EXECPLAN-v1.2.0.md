@@ -36,15 +36,26 @@ Observable outcome:
 - [x] 2026-07-11 21:17 +04:00: Final Firefox build, automated runtime checklist, and QA-Agent approval completed for the isolated Phase 0 commit.
 - [x] 2026-07-11 14:39 +04:00: `npm.cmd run build:firefox` passes and produces the Firefox `1.1.2` manifest with only `storage`, `notifications`, and `alarms` permissions.
 - [x] 2026-07-11 14:39 +04:00: QA-Agent approved the generation/ownership concurrency design after two stale-callback review cycles; no static blocking defect remains.
-- [ ] 2026-07-11 14:39 +04:00: Pending — `web-ext lint` could not run because downloading the absent npm package was denied; no dependency was added.
+- [x] 2026-07-11 23:59 +04:00: `npx.cmd web-ext lint --source-dir dist-firefox` completed without adding a dependency: 0 errors, 0 notices, and four pre-existing/generated warnings.
 - [x] 2026-07-11 21:17 +04:00: Automated Firefox coverage completed for timer, focus-music state, popup reopen, app-window de-duplication, completion statistics, notification count, and legacy JSON-compatible storage.
 - [x] 2026-07-11 21:15 +04:00: Firefox 152.0.5 temporarily installed `dist-firefox` through WebDriver BiDi in an isolated profile and loaded the popup UI without console errors.
 - [x] 2026-07-11 21:15 +04:00: Automated Firefox runtime checks passed for disabled Work/Break/Rest playback, one Work player, popup reopen state, Stream/volume reconciliation, twenty rapid Start/Pause cycles, app-window de-duplication, exact-once completion statistics, one completion chime/notification, and legacy storage normalization.
 - [ ] 2026-07-11 21:15 +04:00: Pending — subjective audible continuity, full-length Stream looping, and UI-driven JSON export/import and malformed-file checks still require a short manual pass.
+- [x] 2026-07-11 21:25 +04:00: Audited the Phase 1 storage, migration, JSON, Chrome offscreen, and Firefox completion contracts before changing the schema.
+- [x] 2026-07-11 21:25 +04:00: Defined storage v3 with canonical built-in Focus Modes, an initially empty SessionEvent log, task mode references, and a persisted cycle start timestamp.
+- [x] 2026-07-11 21:25 +04:00: QA-Agent challenged the Phase 1 design; added dedicated cycle identity, shared completion timestamps, and queued statistics deletion before implementation.
+- [x] 2026-07-11 23:59 +04:00: Implemented storage v3, canonical Focus Modes, cycle identity/start persistence, exact-once SessionEvent writes, JSON portability, and aggregate/event statistics deletion on Chrome and Firefox runtimes.
+- [x] 2026-07-11 23:59 +04:00: Storage harness passed v0/v1/v2 migration, idempotence, malformed/duplicate input, spoofed built-ins, dangling task references, legacy timestamp fallback, safe import, and JSON rejection checks.
+- [x] 2026-07-11 23:59 +04:00: `git diff --check`, `npx.cmd tsc --noEmit`, `npm.cmd run build`, and `npm.cmd run build:firefox` pass for Phase 1.
+- [x] 2026-07-11 23:59 +04:00: Firefox 152.0.5 headless runtime verification passed v2-to-v3 migration/backup, exact-once Work event creation, Pause/Resume identity, automatic Break identity, Break completion, statistics/event deletion, Reset cleanup, and console-error checks.
+- [x] 2026-07-12 00:58 +04:00: QA-Agent completed the final Phase 1 review after the Chrome offscreen and legacy-start fixes; no blocking defects remain.
+- [x] 2026-07-12 00:53 +04:00: Resolved QA blockers by making Chrome background the sole TimerState writer, requiring background completion acknowledgement before the offscreen chime, and preserving a null legacy cycle start across Pause/Resume.
+- [x] 2026-07-12 00:53 +04:00: Re-ran `git diff --check`, TypeScript, Chrome production build, and Firefox production build after the QA fixes; all pass.
+- [x] 2026-07-12 00:58 +04:00: QA-Agent re-review approved scheduler-only Chrome offscreen ownership, acknowledged completion audio, legacy null-start fallback, exact-once writes, and migration behavior.
 - [x] 2026-07-11 21:17 +04:00: Baseline v1.1.x runtime fixes passed static, automated Firefox, and QA-Agent verification and were included in the isolated Phase 0 commit.
 - [ ] 2026-07-11: Pending — Free/Pro product boundary approved.
-- [ ] 2026-07-11: Pending — storage schema and migration design implemented and tested.
-- [ ] 2026-07-11: Pending — session event log implemented and populated for new completed work sessions.
+- [x] 2026-07-12: Storage schema v3 and migration design implemented and tested.
+- [x] 2026-07-12: Session event log implemented and populated exactly once for new completed Work sessions.
 - [ ] 2026-07-11: Pending — Focus Modes implemented without a paywall.
 - [ ] 2026-07-11: Pending — Focus Review and goals implemented without a paywall.
 - [ ] 2026-07-11: Pending — CSV and Markdown reports implemented.
@@ -70,6 +81,14 @@ Observable outcome:
 - `TimerState.revision` cannot protect audio settings changes because enabled, track, and volume updates do not increment the timer revision.
 - Firefox permits autoplay in extension background pages by default, but playback rejection or timeout still has to fail as an optional music error rather than blocking the timer.
 - A generation check alone is insufficient when Stream reuses the same `Audio` elements: stale cleanup needs per-audio ownership so it cannot pause an element already adopted by a newer reconciliation pass.
+- The existing timer state does not preserve the original cycle start across Pause/Resume. Deriving every `SessionEvent.startedAt` from completion time would corrupt time-of-day analytics, so storage v3 needs a persisted cycle start timestamp.
+- Firefox already serializes timer mutations, but the Chrome service worker handles completion messages concurrently. Exact-once SessionEvents require the same operation queue around Chrome timer mutations.
+- Deleting aggregate statistics for a task must also delete its raw SessionEvents; otherwise future analytics could recreate data the user explicitly removed.
+- A timer mutation queue alone cannot reject a delayed Chrome completion from an older Work after a new Work starts in the same mode. Completion payloads need a dedicated cycle identity.
+- Firefox headless alarm delivery for an already-expired target can vary by roughly ten seconds. Runtime acceptance must poll the resulting timer state within a bounded window instead of assuming sub-second alarm delivery.
+- A first deletion assertion used `no-task` instead of the real `task-no-task` id and produced a false positive. Re-running against the actual stored id confirmed that the queued mutation removes both the aggregate and raw events.
+- QA found that the Chrome offscreen tick still wrote TimerState across an await. A stale tick could therefore overwrite Reset or a newer cycle even though the background cycle guard protected statistics. Exact-once event logic alone was not enough to protect timer state or completion audio.
+- A paused legacy v2 Work has no trustworthy original start timestamp. Assigning the resume click time would fabricate history, so the null start must survive Resume and reach the duration-based completion fallback.
 - Donation and Pro purchase are separate concepts. A donation must not silently grant Pro and a failed donation provider must not affect licensed users.
 - lava.top publicly documents donations, digital products, subscriptions, webhooks, API-key authentication, Russian-card/SBP payouts, and international payments. It still requires real operational verification and may change its availability or terms.
 - A payment provider webhook can be retried. The backend must be idempotent and treat provider invoice or contract ids as unique events.
@@ -96,10 +115,22 @@ Observable outcome:
 - Allow focus music only for an enabled, running, unpaused Work timer whose `targetEndTime` is present and still in the future. Completion audio priming remains independent from optional focus music.
 - Treat focus-music playback failures and timeouts as non-fatal. They may log a bounded warning, but they must never fail timer start, popup initialization, statistics, notifications, or JSON recovery.
 - Transfer per-audio ownership when a newer generation adopts an already-playing element. Timeout and stale cleanup may dispose or reset only elements still owned by their captured generation.
+- Add `cycleStartedAt` to persisted timer state. New cycles capture the user-provided start time, Pause preserves it, Resume reuses it, and Reset or a ready next mode clears it. Auto-started breaks capture their automatic start time.
+- Do not synthesize SessionEvents from legacy aggregate statistics. Migration creates canonical built-in modes plus an empty event log and uses a duration-based start fallback only if a work cycle that began before storage v3 completes after migration.
+- Write the aggregate statistic, SessionEvent, tasks, and next timer state in one storage update. Serialize Chrome and Firefox completion mutations so duplicate messages observe the already-transitioned timer and cannot append twice.
+- Use stable built-in Focus Mode ids and timestamps so repeated normalization is idempotent. Canonical built-ins cannot be overridden by imported data; custom modes remain normalized and portable.
+- Persist a stable `cycleId` with every active cycle and carry it through Chrome offscreen completion payloads. Completion requires both mode and cycle id to match; Pause/Resume preserves identity, while Reset, Stop, Skip, and ready states clear it.
+- Capture one `completedAt` and one duration per Work completion and use them for both aggregate statistics and the SessionEvent so midnight cannot split the two records across dates.
+- Route task-statistics deletion through the platform background queue. Delete the aggregate and matching raw events in one storage write and return both collections to the UI store.
+- Keep Chrome TimerState background-owned. The offscreen document only schedules expiry and sends a cycle-scoped completion request; it never writes timer storage.
+- Play the Chrome completion chime only after the serialized background handler confirms that the requested cycle was accepted and transitioned. A rejected stale completion remains silent.
+- Preserve `cycleStartedAt: null` when resuming a migrated paused cycle. Generate a new cycle id for identity, but use the duration-based event start fallback when that legacy Work completes.
 
 ## Outcomes & Retrospective
 
 Phase 0 implementation, static concurrency review, automated Firefox runtime verification, QA-Agent approval, and the scoped baseline commit are complete. The Firefox runtime has one background-owned focus-music reconciler and no UI-owned player, while layout styles, storage schema, permissions, donation configuration, entitlements, feature gates, and Focus Modes remain unchanged. Diff, TypeScript, Firefox build, popup load, timer/music state transitions, rapid pause stress, app-window de-duplication, exact-once completion, notification count, and legacy normalization checks pass without extension console errors. `web-ext lint`, subjective full-length Stream continuity, and UI-driven JSON file-picker flows remain documented manual release risks; they do not block subsequent Phase 1 planning.
+
+Phase 1 implementation, automated verification, and QA-Agent review are complete. Storage v3 preserves legacy user data, installs canonical built-in Focus Modes without changing current settings, and records new completed Work cycles as exact-once SessionEvents alongside the existing aggregates. Cycle identity rejects stale Chrome completion messages; Pause/Resume preserves the original start; ready, Reset, Skip, Break, and Rest transitions clear identity as appropriate. Chrome background is the only TimerState writer, while offscreen only schedules expiry and plays a chime after acknowledged completion. JSON round-trips modes and events while imports force a safe idle timer. No layout, CSS, permission, donation, entitlement, feature-gate, or Focus Mode UI change is part of this phase. Firefox runtime validation passed; Chrome received static, TypeScript, build, and independent QA coverage, with live Chrome runtime remaining a non-blocking follow-up risk.
 
 ## Context and Orientation
 
@@ -611,3 +642,13 @@ Revision note 2026-07-11 21:15 +04:00: Recorded the isolated Firefox 152 WebDriv
 Revision note 2026-07-11 21:17 +04:00: Recorded final QA-Agent approval for the scoped Phase 0 commit and reclassified subjective Stream continuity, optional lint, and UI file-picker checks as non-blocking manual release risks.
 
 Revision note 2026-07-11 21:17 +04:00: Finalized the Phase 0 outcome after creating the isolated baseline commit; no Phase 1 implementation was started.
+
+Revision note 2026-07-11 21:25 +04:00: Started Phase 1 after auditing migration and runtime completion paths; recorded the cycle-start, exact-once queue, canonical built-in mode, and statistics-deletion decisions before implementation.
+
+Revision note 2026-07-11 21:25 +04:00: Incorporated the QA design challenge by adding cycle identity, shared completion timestamps, and serialized aggregate/event deletion to the Phase 1 contract.
+
+Revision note 2026-07-11 23:59 +04:00: Recorded the completed storage v3 implementation, storage harness, Chrome/Firefox builds, Firefox runtime evidence, successful optional lint, alarm-delay discovery, corrected deletion assertion, and the remaining QA/commit gate.
+
+Revision note 2026-07-12 00:53 +04:00: Recorded QA's offscreen stale-write and legacy paused-start findings, the background-owned Chrome TimerState decision, acknowledged completion audio, null-start preservation, successful rebuilds, and the pending QA re-review.
+
+Revision note 2026-07-12 00:58 +04:00: Recorded final QA-Agent approval, completed Phase 1 storage/event milestones, fresh successful checks and builds, and the non-blocking absence of a live Chrome runtime pass.

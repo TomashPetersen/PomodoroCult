@@ -1,17 +1,21 @@
 import {
   getDurationSeconds,
-  getNextTimerRevision,
   getRunningDisplaySeconds,
-  readStoredData,
-  setLocal
+  readStoredData
 } from './lib/storage';
 import { playCompletionChime } from './lib/completionChime';
-import { RuntimeMessage, StartTimerPayload, TimerMode, TimerState } from './lib/types';
+import { RuntimeMessage, StartTimerPayload } from './lib/types';
 
 let intervalId: number | null = null;
 let targetEndTime: number | null = null;
 let activePayload: StartTimerPayload | null = null;
 let tickInProgress = false;
+let timerGeneration = 0;
+
+interface TimerCompletionResponse {
+  ok?: boolean;
+  completed?: boolean;
+}
 
 const clearTimer = (): void => {
   if (intervalId !== null) {
@@ -20,33 +24,41 @@ const clearTimer = (): void => {
   }
 };
 
-const runtimeSendMessage = (message: RuntimeMessage): Promise<void> =>
+const runtimeSendMessage = <T>(message: RuntimeMessage): Promise<T | undefined> =>
   new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, () => {
-      void chrome.runtime.lastError;
-      resolve();
+    chrome.runtime.sendMessage(message, (response: T | undefined) => {
+      const error = chrome.runtime.lastError;
+      resolve(error ? undefined : response);
     });
   });
 
-const writeTimerState = async (patch: Partial<TimerState>): Promise<TimerState> => {
-  const { timerState } = await readStoredData();
-  const nextState: TimerState = {
-    ...timerState,
-    revision: getNextTimerRevision(timerState),
-    ...patch
-  };
+const completeTimer = async (
+  expectedGeneration: number,
+  expectedPayload: StartTimerPayload
+): Promise<void> => {
+  if (
+    timerGeneration !== expectedGeneration ||
+    activePayload?.cycleId !== expectedPayload.cycleId
+  ) {
+    return;
+  }
 
-  await setLocal({ timerState: nextState });
-  return nextState;
-};
-
-const completeTimer = async (): Promise<void> => {
-  if (!activePayload) return;
-
-  const completedPayload = activePayload;
   clearTimer();
   targetEndTime = null;
   activePayload = null;
+
+  const response = await runtimeSendMessage<TimerCompletionResponse>({
+    type: 'TIMER_COMPLETED',
+    payload: {
+      mode: expectedPayload.mode,
+      activeTaskId: expectedPayload.activeTaskId,
+      durationSeconds: expectedPayload.durationSeconds,
+      statSeconds: expectedPayload.statSeconds,
+      cycleId: expectedPayload.cycleId
+    }
+  });
+
+  if (!response?.ok || !response.completed) return;
 
   try {
     await playCompletionChime();
@@ -56,34 +68,25 @@ const completeTimer = async (): Promise<void> => {
       error instanceof Error ? error.message : String(error)
     );
   }
-  await runtimeSendMessage({
-    type: 'TIMER_COMPLETED',
-    payload: {
-      mode: completedPayload.mode,
-      activeTaskId: completedPayload.activeTaskId,
-      durationSeconds: completedPayload.durationSeconds,
-      statSeconds: completedPayload.statSeconds
-    }
-  });
 };
 
 const tick = async (): Promise<void> => {
   if (!targetEndTime || !activePayload || tickInProgress) return;
   tickInProgress = true;
+  const expectedGeneration = timerGeneration;
+  const expectedTargetEndTime = targetEndTime;
+  const expectedPayload = activePayload;
 
   try {
-    const remainingSeconds = getRunningDisplaySeconds(targetEndTime);
+    const remainingSeconds = getRunningDisplaySeconds(expectedTargetEndTime);
 
-    await writeTimerState({
-      isRunning: true,
-      currentMode: activePayload.mode,
-      remainingSeconds,
-      targetEndTime,
-      activeTaskId: activePayload.activeTaskId
-    });
-
-    if (remainingSeconds <= 0) {
-      await completeTimer();
+    if (
+      remainingSeconds <= 0 &&
+      timerGeneration === expectedGeneration &&
+      activePayload?.cycleId === expectedPayload.cycleId &&
+      targetEndTime === expectedTargetEndTime
+    ) {
+      await completeTimer(expectedGeneration, expectedPayload);
     }
   } finally {
     tickInProgress = false;
@@ -91,54 +94,47 @@ const tick = async (): Promise<void> => {
 };
 
 const startTimer = async (payload: StartTimerPayload): Promise<void> => {
+  timerGeneration += 1;
   clearTimer();
 
   activePayload = payload;
   targetEndTime = payload.targetEndTime;
 
-  await writeTimerState({
-    isRunning: true,
-    isPaused: false,
-    cycleStarted: true,
-    currentMode: payload.mode,
-    remainingSeconds: payload.durationSeconds,
-    targetEndTime,
-    activeTaskId: payload.activeTaskId
-  });
-
   await tick();
-  intervalId = window.setInterval(() => {
-    void tick();
-  }, 1000);
+  if (activePayload?.cycleId === payload.cycleId) {
+    intervalId = window.setInterval(() => {
+      void tick();
+    }, 1000);
+  }
 };
 
 const pauseTimer = async (): Promise<void> => {
-  const remainingSeconds = targetEndTime
-    ? getRunningDisplaySeconds(targetEndTime)
-    : undefined;
-
+  timerGeneration += 1;
   clearTimer();
   targetEndTime = null;
   activePayload = null;
-
-  await writeTimerState({
-    isRunning: false,
-    isPaused: true,
-    ...(remainingSeconds !== undefined ? { remainingSeconds } : {}),
-    targetEndTime: null
-  });
 };
 
 const stopTimer = async (): Promise<void> => {
+  timerGeneration += 1;
   clearTimer();
   targetEndTime = null;
   activePayload = null;
 };
 
 const resumeTimer = async (): Promise<void> => {
+  timerGeneration += 1;
+  const expectedGeneration = timerGeneration;
   const { settings, timerState } = await readStoredData();
 
-  if (!timerState.isRunning || !timerState.targetEndTime) return;
+  if (
+    timerGeneration !== expectedGeneration ||
+    !timerState.isRunning ||
+    !timerState.targetEndTime ||
+    !timerState.cycleId
+  ) {
+    return;
+  }
 
   clearTimer();
   targetEndTime = timerState.targetEndTime;
@@ -147,12 +143,13 @@ const resumeTimer = async (): Promise<void> => {
     durationSeconds: timerState.remainingSeconds,
     targetEndTime: timerState.targetEndTime,
     activeTaskId: timerState.activeTaskId,
+    cycleId: timerState.cycleId,
     statSeconds: getDurationSeconds(settings, timerState.currentMode)
   };
 
   await tick();
 
-  if (activePayload) {
+  if (activePayload?.cycleId === timerState.cycleId) {
     intervalId = window.setInterval(() => {
       void tick();
     }, 1000);

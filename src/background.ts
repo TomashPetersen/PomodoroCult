@@ -1,6 +1,8 @@
 import { NO_TASK_ID } from './lib/constants';
 import {
   addSessionStatistics,
+  createCycleId,
+  createSessionEvent,
   ensureNoTask,
   getDurationSeconds,
   getNextTimerRevision,
@@ -8,7 +10,10 @@ import {
   getStartDurationSeconds,
   getStartTargetEndTime,
   initializeStorage,
+  isResumingPausedTimer,
   readStoredData,
+  removeTaskSessionEvents,
+  removeTaskStatistics,
   setLocal,
   sortTasks
 } from './lib/storage';
@@ -16,7 +21,22 @@ import { RuntimeMessage, StartTimerPayload, TimerMode, TimerState } from './lib/
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
 
+interface TimerCompletionResult {
+  timerState: TimerState;
+  completed: boolean;
+}
+
 let creatingOffscreenDocument: Promise<void> | null = null;
+let timerOperationQueue: Promise<void> = Promise.resolve();
+
+const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = timerOperationQueue.then(operation, operation);
+  timerOperationQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+};
 
 const sendMessage = (message: RuntimeMessage): Promise<void> =>
   new Promise((resolve) => {
@@ -92,7 +112,17 @@ const stopOffscreenTimer = async (): Promise<void> => {
 };
 
 const resumeRunningTimer = async (): Promise<void> => {
-  const { timerState } = await initializeStorage();
+  const { timerState: storedTimerState } = await initializeStorage();
+
+  let timerState = storedTimerState;
+  if (timerState.isRunning && !timerState.cycleId) {
+    timerState = {
+      ...timerState,
+      cycleId: createCycleId(),
+      revision: getNextTimerRevision(timerState)
+    };
+    await setLocal({ timerState });
+  }
 
   if (!timerState.isRunning) return;
 
@@ -105,7 +135,9 @@ const buildRunningState = (
   mode: TimerMode,
   durationSeconds: number,
   targetEndTime: number,
-  activeTaskId: string | null
+  activeTaskId: string | null,
+  cycleId: string,
+  cycleStartedAt: number | null
 ): TimerState => ({
   ...timerState,
   isRunning: true,
@@ -115,6 +147,8 @@ const buildRunningState = (
   currentMode: mode,
   remainingSeconds: durationSeconds,
   targetEndTime,
+  cycleId,
+  cycleStartedAt,
   activeTaskId
 });
 
@@ -124,6 +158,14 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
   let { tasks, timerState } = data;
 
   if (timerState.isRunning) {
+    if (!timerState.cycleId) {
+      timerState = {
+        ...timerState,
+        cycleId: createCycleId(),
+        revision: getNextTimerRevision(timerState)
+      };
+      await setLocal({ timerState });
+    }
     await createOffscreenDocument();
     await sendMessage({ type: 'OFFSCREEN_RESUME_TIMER' });
     return timerState;
@@ -153,12 +195,17 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
 
   const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
   const targetEndTime = getStartTargetEndTime(settings, timerState, mode, startedAt);
+  const isResume = isResumingPausedTimer(settings, timerState, mode);
+  const cycleId = isResume && timerState.cycleId ? timerState.cycleId : createCycleId();
+  const cycleStartedAt = isResume ? timerState.cycleStartedAt : startedAt;
   const nextState = buildRunningState(
     timerState,
     mode,
     durationSeconds,
     targetEndTime,
-    activeTaskId ?? null
+    activeTaskId ?? null,
+    cycleId,
+    cycleStartedAt
   );
 
   await setLocal({
@@ -170,6 +217,7 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     durationSeconds,
     targetEndTime,
     activeTaskId: activeTaskId ?? null,
+    cycleId,
     statSeconds: getDurationSeconds(settings, mode)
   });
 
@@ -185,12 +233,13 @@ const handlePauseTimer = async (): Promise<TimerState> => {
 
   if (timerState.targetEndTime && timerState.targetEndTime <= Date.now()) {
     await stopOffscreenTimer();
-    return handleTimerCompleted({
+    return (await handleTimerCompleted({
       mode: timerState.currentMode,
       activeTaskId: timerState.activeTaskId,
       durationSeconds: 0,
-      statSeconds: 0
-    });
+      statSeconds: 0,
+      cycleId: timerState.cycleId ?? ''
+    })).timerState;
   }
 
   const remainingSeconds = timerState.targetEndTime
@@ -205,8 +254,8 @@ const handlePauseTimer = async (): Promise<TimerState> => {
     targetEndTime: null
   };
 
-  await setLocal({ timerState: nextState });
   await sendMessage({ type: 'OFFSCREEN_PAUSE_TIMER' });
+  await setLocal({ timerState: nextState });
   return nextState;
 };
 
@@ -216,12 +265,13 @@ const handleResetTimer = async (): Promise<TimerState> => {
     storedTimerState.isRunning &&
     storedTimerState.targetEndTime &&
     storedTimerState.targetEndTime <= Date.now()
-      ? await handleTimerCompleted({
+      ? (await handleTimerCompleted({
           mode: storedTimerState.currentMode,
           activeTaskId: storedTimerState.activeTaskId,
           durationSeconds: 0,
-          statSeconds: 0
-        })
+          statSeconds: 0,
+          cycleId: storedTimerState.cycleId ?? ''
+        })).timerState
       : storedTimerState;
   const nextState: TimerState = {
     ...timerState,
@@ -232,11 +282,13 @@ const handleResetTimer = async (): Promise<TimerState> => {
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null,
     completedSessions: 0
   };
 
-  await setLocal({ timerState: nextState });
   await stopOffscreenTimer();
+  await setLocal({ timerState: nextState });
   return nextState;
 };
 
@@ -254,23 +306,30 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
     revision: getNextTimerRevision(timerState),
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
-    targetEndTime: null
+    targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null
   };
 
-  await setLocal({ timerState: nextState });
   await stopOffscreenTimer();
+  await setLocal({ timerState: nextState });
   return nextState;
 };
 
 const handleTimerCompleted = async (
   payload: Extract<RuntimeMessage, { type: 'TIMER_COMPLETED' }>['payload']
-): Promise<TimerState> => {
+): Promise<TimerCompletionResult> => {
   const data = await readStoredData();
   const { settings } = data;
-  let { tasks, statistics, timerState } = data;
+  let { tasks, statistics, sessionEvents, timerState } = data;
 
-  if (!timerState.isRunning || timerState.currentMode !== payload.mode) {
-    return timerState;
+  if (
+    !timerState.isRunning ||
+    timerState.currentMode !== payload.mode ||
+    !timerState.cycleId ||
+    timerState.cycleId !== payload.cycleId
+  ) {
+    return { timerState, completed: false };
   }
 
   if (payload.mode === 'work') {
@@ -282,14 +341,32 @@ const handleTimerCompleted = async (
     const nextMode =
       completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';
     const nextDuration = getDurationSeconds(settings, nextMode);
-    const nextTargetEndTime = settings.autoStartBreaks ? Date.now() + nextDuration * 1000 : null;
+    const completedAt = Date.now();
+    const durationSeconds = payload.statSeconds || getDurationSeconds(settings, 'work');
+    const nextTargetEndTime = settings.autoStartBreaks
+      ? completedAt + nextDuration * 1000
+      : null;
+    const nextCycleId = nextTargetEndTime ? createCycleId() : null;
 
     statistics = addSessionStatistics(
       statistics,
       activeTaskId,
       taskTitle,
-      payload.statSeconds || getDurationSeconds(settings, 'work')
+      durationSeconds,
+      completedAt
     );
+    sessionEvents = [
+      ...sessionEvents,
+      createSessionEvent({
+        cycleId: timerState.cycleId,
+        taskId: activeTaskId,
+        taskTitleSnapshot: taskTitle,
+        focusModeId: null,
+        cycleStartedAt: timerState.cycleStartedAt,
+        completedAt,
+        durationSeconds
+      })
+    ];
 
     const nextState: TimerState = {
       ...timerState,
@@ -299,6 +376,8 @@ const handleTimerCompleted = async (
       currentMode: nextMode,
       remainingSeconds: nextDuration,
       targetEndTime: nextTargetEndTime,
+      cycleId: nextCycleId,
+      cycleStartedAt: nextTargetEndTime ? completedAt : null,
       activeTaskId,
       completedSessions
     };
@@ -306,6 +385,7 @@ const handleTimerCompleted = async (
     await setLocal({
       tasks,
       statistics,
+      sessionEvents,
       timerState: nextState
     });
 
@@ -315,11 +395,12 @@ const handleTimerCompleted = async (
         durationSeconds: nextDuration,
         targetEndTime: nextTargetEndTime,
         activeTaskId,
+        cycleId: nextCycleId!,
         statSeconds: getDurationSeconds(settings, nextMode)
       });
     }
 
-    return nextState;
+    return { timerState: nextState, completed: true };
   }
 
   const nextState: TimerState = {
@@ -330,19 +411,29 @@ const handleTimerCompleted = async (
     currentMode: 'work',
     remainingSeconds: getDurationSeconds(settings, 'work'),
     targetEndTime: null,
+    cycleId: null,
+    cycleStartedAt: null,
     activeTaskId: timerState.activeTaskId
   };
 
   await setLocal({ timerState: nextState });
-  return nextState;
+  return { timerState: nextState, completed: true };
+};
+
+const handleDeleteTaskStatistics = async (taskId: string) => {
+  const { statistics, sessionEvents } = await readStoredData();
+  const nextStatistics = removeTaskStatistics(statistics, taskId);
+  const nextSessionEvents = removeTaskSessionEvents(sessionEvents, taskId);
+  await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
+  return { statistics: nextStatistics, sessionEvents: nextSessionEvents };
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  void resumeRunningTimer();
+  void enqueueTimerOperation(resumeRunningTimer);
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void resumeRunningTimer();
+  void enqueueTimerOperation(resumeRunningTimer);
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
@@ -354,27 +445,39 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
 
     switch (message.type) {
       case 'POPUP_ENSURE_READY':
-        await resumeRunningTimer();
+        await enqueueTimerOperation(resumeRunningTimer);
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':
         sendResponse({
           ok: true,
-          timerState: await handleStartTimer(message.payload.mode, message.payload.startedAt)
+          timerState: await enqueueTimerOperation(() =>
+            handleStartTimer(message.payload.mode, message.payload.startedAt)
+          )
         });
         return;
       case 'POPUP_PAUSE_TIMER':
-        sendResponse({ ok: true, timerState: await handlePauseTimer() });
+        sendResponse({ ok: true, timerState: await enqueueTimerOperation(handlePauseTimer) });
         return;
       case 'POPUP_RESET_TIMER':
-        sendResponse({ ok: true, timerState: await handleResetTimer() });
+        sendResponse({ ok: true, timerState: await enqueueTimerOperation(handleResetTimer) });
         return;
       case 'POPUP_SKIP_SHORT_BREAK':
-        sendResponse({ ok: true, timerState: await handleSkipShortBreak() });
+        sendResponse({ ok: true, timerState: await enqueueTimerOperation(handleSkipShortBreak) });
         return;
       case 'TIMER_COMPLETED':
-        sendResponse({ ok: true, timerState: await handleTimerCompleted(message.payload) });
+        sendResponse({
+          ok: true,
+          ...(await enqueueTimerOperation(() => handleTimerCompleted(message.payload)))
+        });
         return;
+      case 'DELETE_TASK_STATISTICS': {
+        const result = await enqueueTimerOperation(() =>
+          handleDeleteTaskStatistics(message.payload.taskId)
+        );
+        sendResponse({ ok: true, ...result });
+        return;
+      }
       default:
         sendResponse({ ok: true, ignored: true });
     }

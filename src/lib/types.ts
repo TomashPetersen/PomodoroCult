@@ -7,8 +7,10 @@ export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 export type Locale = 'ru' | 'en';
 export type LanguagePreference = 'auto' | Locale;
 export type FocusMusicTrack = 'stream' | 'birds' | 'clock';
+export type PlanTier = 'free' | 'pro';
+export type FocusNotificationMode = 'normal' | 'soft' | 'sound-only';
 
-export const CURRENT_STORAGE_VERSION = 2;
+export const CURRENT_STORAGE_VERSION = 3;
 
 export interface Settings {
   workTime: number;
@@ -31,6 +33,7 @@ export interface Task {
   system?: boolean;
   archived?: boolean;
   archivedAt?: number | null;
+  focusModeId?: string | null;
 }
 
 export interface TimerState {
@@ -41,8 +44,38 @@ export interface TimerState {
   currentMode: TimerMode;
   remainingSeconds: number;
   targetEndTime: number | null;
+  cycleId: string | null;
+  cycleStartedAt: number | null;
   activeTaskId: string | null;
   completedSessions: number;
+}
+
+export interface FocusMode {
+  id: string;
+  title: string;
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longRestMinutes: number;
+  cyclesBeforeRest: number;
+  autoStartBreaks: boolean;
+  soundTrack: FocusMusicTrack | 'none';
+  soundVolume: number;
+  sessionGoal: number | null;
+  notificationMode: FocusNotificationMode;
+  accent: string | null;
+  builtIn: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SessionEvent {
+  id: string;
+  taskId: string;
+  taskTitleSnapshot: string;
+  focusModeId: string | null;
+  startedAt: number;
+  completedAt: number;
+  durationSeconds: number;
 }
 
 export interface TaskStatistics {
@@ -68,6 +101,8 @@ export interface StoredData {
   tasks: Task[];
   timerState: TimerState;
   statistics: Statistics;
+  focusModes: FocusMode[];
+  sessionEvents: SessionEvent[];
   theme: ThemeMode;
 }
 
@@ -91,6 +126,7 @@ export interface ExportedDataDocument {
 
 export interface StartTimerPayload {
   mode: TimerMode;
+  cycleId: string;
   durationSeconds: number;
   targetEndTime: number;
   activeTaskId: string | null;
@@ -103,6 +139,7 @@ export type RuntimeMessage =
   | { type: 'POPUP_RESET_TIMER' }
   | { type: 'POPUP_SKIP_SHORT_BREAK' }
   | { type: 'POPUP_ENSURE_READY' }
+  | { type: 'DELETE_TASK_STATISTICS'; payload: { taskId: string } }
   | {
       type: 'OPEN_APP_WINDOW';
       payload?: { screen?: AppScreen; statsView?: StatsView };
@@ -119,6 +156,7 @@ export type RuntimeMessage =
       type: 'TIMER_COMPLETED';
       payload: {
         mode: TimerMode;
+        cycleId: string;
         activeTaskId: string | null;
         durationSeconds: number;
         statSeconds: number;
@@ -143,6 +181,8 @@ export const STORAGE_KEYS = {
   tasks: 'tasks',
   timerState: 'timerState',
   statistics: 'statistics',
+  focusModes: 'focusModes',
+  sessionEvents: 'sessionEvents',
   theme: 'theme',
   migrationBackup: 'migrationBackup'
 } as const;
