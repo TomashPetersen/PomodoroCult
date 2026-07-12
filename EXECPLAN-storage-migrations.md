@@ -18,6 +18,10 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - [x] 2026-07-11 23:59 +04:00: Verified v0/v1/v2 migration, backup preservation, normalization idempotence, JSON portability, legacy event fallback, and malformed input rejection in an isolated storage harness.
 - [x] 2026-07-11 23:59 +04:00: Verified the built Firefox package records Work events exactly once and deletes task aggregates/events together; Chrome and Firefox production builds pass.
 - [x] 2026-07-12 00:58 +04:00: QA-Agent approved background-owned Chrome TimerState, acknowledged completion audio, legacy null-start fallback, exact-once writes, and migration behavior after fresh checks and builds.
+- [x] 2026-07-12 19:49 +04:00: Extended storage v3 additively with normalized `selectedFocusModeId`, `manualSettings`, and `activeCycleSnapshot` without a version bump; existing v3 and v0/v1/v2 inputs remain idempotent.
+- [x] 2026-07-12 19:49 +04:00: Phase 2 migration/domain harness, both builds, Firefox runtime import/reopen behavior, and final package lint pass.
+- [x] 2026-07-12 20:27 +04:00: Added Phase 1 ready-Work semantic normalization and queued task-mutation regression coverage; final post-fix harness/runtime pass and QA-Agent `APPROVE`.
+- [x] 2026-07-12 20:27 +04:00: Added Phase 1 ready-Work semantic normalization and queued task-mutation regression coverage; final post-fix harness/runtime pass and QA-Agent `APPROVE`.
 
 ## Surprises & Discoveries
 
@@ -30,6 +34,9 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - An event start timestamp must survive Pause/Resume; a dedicated cycle id is also required to reject delayed completion from an older Chrome offscreen cycle.
 - A scheduler document must not race the authoritative runtime for persisted timer writes. Chrome offscreen now owns only expiry scheduling; background owns every TimerState transition.
 - A migrated paused cycle has no reliable original start. Resume preserves its null start so completion uses the documented duration fallback instead of inventing a resume-time timestamp.
+- Existing v3 active cycles also lacked a configuration snapshot. Initialization now materializes and persists one from the then-current settings before editable Focus Mode UI can change the next-cycle configuration.
+- A Phase 1 completed Break/Rest could leave ready Work marked `cycleStarted`. This is now recognized by its lack of running/paused state, target, and cycle id, then normalized to unlocked Work with no snapshot.
+- A Phase 1 completed Break/Rest could leave ready Work marked `cycleStarted`. This is now recognized by its lack of running/paused state, target, and cycle id, then normalized to unlocked Work with no snapshot.
 
 ## Decision Log
 
@@ -45,10 +52,12 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - Statistics deletion is serialized by the platform background runtime and removes matching SessionEvents in the same storage write.
 - Legacy aggregate statistics are never backfilled into SessionEvents; only an in-progress legacy Work uses duration-based `startedAt` fallback when it later completes.
 - Chrome completion audio is conditional on a positive, cycle-matched background acknowledgement; stale completion requests remain silent.
+- Keep storage version 3 for the Phase 2 selection/manual/snapshot fields because they are additive, have safe missing-field defaults, and do not change the meaning of existing persisted records.
+- Imported timers always become safe idle with `activeCycleSnapshot: null`; selected/global mode, manual settings, custom modes, task bindings, and historical SessionEvents remain portable.
 
 ## Outcomes & Retrospective
 
-Implemented schema metadata, migration backup, export/import helpers, and Settings UI controls. Storage v3 now also provides canonical Focus Modes and exact-once timestamped Work events without changing the current UI or free behavior. The first version keeps restore-from-backup manual/future-facing; automatic backup is stored for recovery but no UI is built for choosing a backup yet. Event retention remains intentionally uncapped until real storage growth is measured.
+Implemented schema metadata, migration backup, export/import helpers, and Settings UI controls. Storage v3 now provides canonical/custom Focus Modes, explicit global/manual selection state, task bindings, active-cycle snapshots, and exact-once timestamped Work events. Phase 2 keeps these workflows fully ungated. The first version keeps restore-from-backup manual/future-facing; automatic backup is stored for recovery but no UI is built for choosing a backup yet. Event retention remains intentionally uncapped until real storage growth is measured.
 
 ## Context and Orientation
 
@@ -73,6 +82,8 @@ New keys:
 - `storageVersion`
 - `migrationBackup`
 - `focusModes`
+- `selectedFocusModeId`
+- `manualSettings`
 - `sessionEvents`
 
 ## Plan of Work
@@ -83,6 +94,7 @@ New keys:
 4. Add store actions for export/import with UI status messages. Done.
 5. Add Settings UI controls for download and file upload. Done.
 6. Validate builds and a legacy-data migration harness. Done for v0/v1/v2 to v3 and the built Firefox runtime; UI file-picker interaction remains a release-level manual check.
+7. Add explicit Focus Mode selection/manual fields and timer snapshots without raising the storage version. Done and verified through the Phase 2 harness and Firefox runtime.
 
 ## Concrete Steps
 
@@ -160,3 +172,9 @@ No new npm dependencies. Import/export uses browser file APIs and JSON.
 2026-07-12 note: Updated after QA found a Chrome offscreen stale-write race and a fabricated legacy resume timestamp. TimerState is now background-owned, completion audio requires acknowledgement, and null legacy starts use the duration fallback.
 
 2026-07-12 note: Final QA re-review approved the Phase 1 migration and runtime contracts. Live Chrome runtime remains a non-blocking follow-up; static review, TypeScript, and both production builds pass.
+
+2026-07-12 note: Added the Phase 2 storage-v3 selection/manual/snapshot contract, safe-import snapshot clearing, idempotent legacy-active normalization, and passing migration/runtime evidence without creating synthetic events or raising the schema version.
+
+2026-07-12 note: Final QA added explicit Phase 1 ready-Work recovery and serialized task-mutation coverage so deleted bindings cannot return through stale popup/app writes; post-fix harness and Firefox runtime pass with QA approval.
+
+2026-07-12 note: Final QA added explicit Phase 1 ready-Work recovery and serialized task-mutation coverage so deleted bindings cannot return through stale popup/app writes; post-fix harness and Firefox runtime pass with QA approval.

@@ -1,8 +1,5 @@
-import {
-  getDurationSeconds,
-  getRunningDisplaySeconds,
-  readStoredData
-} from './lib/storage';
+import { getRunningDisplaySeconds, readStoredData } from './lib/storage';
+import { getSnapshotDurationSeconds } from './lib/focusModes';
 import { playCompletionChime } from './lib/completionChime';
 import { RuntimeMessage, StartTimerPayload } from './lib/types';
 
@@ -125,13 +122,14 @@ const stopTimer = async (): Promise<void> => {
 const resumeTimer = async (): Promise<void> => {
   timerGeneration += 1;
   const expectedGeneration = timerGeneration;
-  const { settings, timerState } = await readStoredData();
+  const { timerState } = await readStoredData();
 
   if (
     timerGeneration !== expectedGeneration ||
     !timerState.isRunning ||
     !timerState.targetEndTime ||
-    !timerState.cycleId
+    !timerState.cycleId ||
+    !timerState.activeCycleSnapshot
   ) {
     return;
   }
@@ -144,7 +142,10 @@ const resumeTimer = async (): Promise<void> => {
     targetEndTime: timerState.targetEndTime,
     activeTaskId: timerState.activeTaskId,
     cycleId: timerState.cycleId,
-    statSeconds: getDurationSeconds(settings, timerState.currentMode)
+    statSeconds: getSnapshotDurationSeconds(
+      timerState.activeCycleSnapshot,
+      timerState.currentMode
+    )
   };
 
   await tick();
@@ -157,6 +158,15 @@ const resumeTimer = async (): Promise<void> => {
 };
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
+  if (
+    message.type !== 'OFFSCREEN_START_TIMER' &&
+    message.type !== 'OFFSCREEN_PAUSE_TIMER' &&
+    message.type !== 'OFFSCREEN_STOP_TIMER' &&
+    message.type !== 'OFFSCREEN_RESUME_TIMER'
+  ) {
+    return false;
+  }
+
   const respond = async (): Promise<void> => {
     switch (message.type) {
       case 'OFFSCREEN_START_TIMER':
@@ -175,8 +185,6 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         await resumeTimer();
         sendResponse({ ok: true });
         return;
-      default:
-        sendResponse({ ok: true, ignored: true });
     }
   };
 

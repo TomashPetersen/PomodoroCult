@@ -52,11 +52,26 @@ Observable outcome:
 - [x] 2026-07-12 00:53 +04:00: Resolved QA blockers by making Chrome background the sole TimerState writer, requiring background completion acknowledgement before the offscreen chime, and preserving a null legacy cycle start across Pause/Resume.
 - [x] 2026-07-12 00:53 +04:00: Re-ran `git diff --check`, TypeScript, Chrome production build, and Firefox production build after the QA fixes; all pass.
 - [x] 2026-07-12 00:58 +04:00: QA-Agent re-review approved scheduler-only Chrome offscreen ownership, acknowledged completion audio, legacy null-start fallback, exact-once writes, and migration behavior.
+- [x] 2026-07-12 19:12 +04:00: Audited the Phase 2 repository state and all required living documents before implementation; confirmed branch `codex/firefox-port`, version `1.1.2`, the Phase 0/1 commits, and the four intentional dirty documentation paths.
+- [x] 2026-07-12 19:12 +04:00: Defined the Phase 2 persisted selection, effective-mode precedence, manual-settings preservation, active-cycle snapshot, deletion, and no-version-bump contracts before changing product code.
+- [x] 2026-07-12 19:12 +04:00: Sent the documented Phase 2 contracts to QA-Agent for pre-implementation challenge review.
+- [x] 2026-07-12 19:20 +04:00: QA-Agent completed the first Phase 2 challenge review with `CHANGES REQUIRED`; the design was tightened around authoritative resolution, ready-Break snapshot retention, legacy snapshot persistence, serialized mutations, and snapshot-owned runtime behavior.
+- [x] 2026-07-12 19:22 +04:00: QA-Agent re-reviewed the corrected Phase 2 contract and returned `DESIGN APPROVE` before implementation.
+- [x] 2026-07-12 19:35 +04:00: Implemented the shared Focus Mode domain, additive storage-v3 selection/manual/snapshot normalization, serialized Chrome/Firefox mutations, snapshot-owned runtime completion/audio behavior, and scheduler-only Chrome resume payload.
+- [x] 2026-07-12 19:35 +04:00: Implemented the large-window selector and accessible custom-mode manager, task binding/badges, popup effective-duration resolution, English/Russian strings, and reduced-motion fallback without gates, limits, permissions, dependencies, or version changes.
+- [x] 2026-07-12 19:35 +04:00: Phase 2 TypeScript and domain/migration harness pass. The harness covers v0/v1/v2/v3 defaults, canonical/duplicate modes, CRUD, precedence, archive/binding, atomic deletion output, legacy paused snapshot/idempotence, event identity/mode retention, and safe JSON import rejection.
+- [x] 2026-07-12 19:35 +04:00: Completed Phase 2 domain/storage/runtime implementation and migration harness.
+- [x] 2026-07-12 19:49 +04:00: Chrome and Firefox production builds pass; `web-ext lint` reports 0 errors, 0 notices, and the same four generated/manifest-compatibility warnings.
+- [x] 2026-07-12 19:49 +04:00: Firefox 152.0.5 isolated-profile runtime passed UI create/apply/bind, task-over-global precedence, Pause/Resume, edit/delete isolation, ready-Break snapshot retention, exact-once Work event, no Break event, popup/app reopen synchronization, and zero browser-console errors.
+- [x] 2026-07-12 19:49 +04:00: Visual smoke passed at 400x600 popup, 1040x760 app window/editor, and 1440x900 maximized app window in light/dark and English/Russian; selector, modal scrolling, task badge/select, timer controls, and keyboard Escape remain usable without overlap.
+- [x] 2026-07-12 20:27 +04:00: Closed final QA blockers: dangling selection restores manual materialization, Chrome ignores payload duration, all task mutations share the background queue, Phase 1 ready Work unlocks semantically, and the modal traps/restores focus.
+- [x] 2026-07-12 20:27 +04:00: Re-ran the augmented migration/domain harness, diff check, TypeScript, both builds, Firefox lint, clean-profile Firefox runtime, keyboard assertions, and refreshed visual smoke; all required gates pass.
+- [x] 2026-07-12 20:27 +04:00: QA-Agent completed final diff/runtime review with `APPROVE`; Phase 2 is ready for its isolated commit.
 - [x] 2026-07-11 21:17 +04:00: Baseline v1.1.x runtime fixes passed static, automated Firefox, and QA-Agent verification and were included in the isolated Phase 0 commit.
 - [ ] 2026-07-11: Pending — Free/Pro product boundary approved.
 - [x] 2026-07-12: Storage schema v3 and migration design implemented and tested.
 - [x] 2026-07-12: Session event log implemented and populated exactly once for new completed Work sessions.
-- [ ] 2026-07-11: Pending — Focus Modes implemented without a paywall.
+- [x] 2026-07-12 20:27 +04:00: Focus Modes implemented and verified without a paywall, limit, entitlement, donation, or monetization code.
 - [ ] 2026-07-11: Pending — Focus Review and goals implemented without a paywall.
 - [ ] 2026-07-11: Pending — CSV and Markdown reports implemented.
 - [ ] 2026-07-11: Pending — feature gates and local developer entitlement simulator implemented.
@@ -89,6 +104,18 @@ Observable outcome:
 - A first deletion assertion used `no-task` instead of the real `task-no-task` id and produced a false positive. Re-running against the actual stored id confirmed that the queued mutation removes both the aggregate and raw events.
 - QA found that the Chrome offscreen tick still wrote TimerState across an await. A stale tick could therefore overwrite Reset or a newer cycle even though the background cycle guard protected statistics. Exact-once event logic alone was not enough to protect timer state or completion audio.
 - A paused legacy v2 Work has no trustworthy original start timestamp. Assigning the resume click time would fabricate history, so the null start must survive Resume and reach the duration-based completion fallback.
+- Phase 1 persisted mode records and task references but no explicit global selection. Inferring selection by comparing live `Settings` with a mode would be ambiguous after imports, manual edits, or duplicate configurations.
+- Applying a mode directly to the only persisted `Settings` object would destroy the user's previous manual configuration. Phase 2 therefore needs a small, separately persisted manual-settings baseline even though effective settings remain available for legacy UI compatibility.
+- Firefox focus music currently reconciles from live `Settings`; without a cycle snapshot, changing a mode or global selection during Work could change the active track or volume even if timer duration remained stable.
+- A ready Break/Rest is still part of the Work cycle chain even when auto-start is disabled. Clearing its snapshot at Work completion would let a later edit/delete/rebind change the manually started break.
+- A UI-side `storage.local.set()` is not an atomic read-modify-write operation relative to background completion. Focus Mode CRUD, binding, selection, and especially deletion must share the authoritative timer operation queue to prevent lost task or selection updates.
+- Normalizing a legacy active v3 timer to an in-memory snapshot is insufficient if startup does not persist the result. Firefox startup must initialize/persist normalized storage before settings can be edited.
+- The existing `isResumingPausedTimer()` compared remaining duration with live settings. Once task/global modes and editable records exist, that comparison is not stable; runtime Resume now keys off persisted pause state, cycle identity, and snapshot instead.
+- Chrome offscreen resume previously rebuilt `statSeconds` from live settings. It now reads only the persisted cycle snapshot and remains unable to choose or mutate a mode.
+- Firefox BiDi screenshots can capture the compositor before theme transitions settle even after the DOM class changes. The visual harness now waits for the rendered theme before capture; computed styles and final light/dark screenshots match.
+- A queued Focus Mode deletion was still vulnerable to a later stale full-task-array write from popup or app-window task actions. Final QA moved select/add/edit/delete/archive/restore into the same background queue, eliminating the lost-update path on both platforms.
+- Phase 1 could persist a completed-Break ready Work with `cycleStarted: true` and no cycle identity. Phase 2 normalization must recognize that semantic ready state and clear its lock/snapshot while still preserving genuinely paused Work.
+- Chrome offscreen previously responded `ignored` to unrelated runtime messages, which could race the authoritative background response. It now returns `false` immediately for every non-offscreen message.
 - Donation and Pro purchase are separate concepts. A donation must not silently grant Pro and a failed donation provider must not affect licensed users.
 - lava.top publicly documents donations, digital products, subscriptions, webhooks, API-key authentication, Russian-card/SBP payouts, and international payments. It still requires real operational verification and may change its availability or terms.
 - A payment provider webhook can be retried. The backend must be idempotent and treat provider invoice or contract ids as unique events.
@@ -125,12 +152,34 @@ Observable outcome:
 - Keep Chrome TimerState background-owned. The offscreen document only schedules expiry and sends a cycle-scoped completion request; it never writes timer storage.
 - Play the Chrome completion chime only after the serialized background handler confirms that the requested cycle was accepted and transitioned. A rejected stale completion remains silent.
 - Preserve `cycleStartedAt: null` when resuming a migrated paused cycle. Generate a new cycle id for identity, but use the duration-based event start fallback when that legacy Work completes.
+- Represent `Default / Manual` explicitly as `selectedFocusModeId: null`; persist a real mode id only for an explicit global selection. Never infer selection solely by comparing `Settings` with a `FocusMode` record.
+- Preserve the user's last manual configuration in a normalized `manualSettings` top-level field. Applying a global mode updates effective `settings` but not `manualSettings`; returning to Default restores `manualSettings`. A manual timer or focus-music edit updates both fields and clears the global selection.
+- Resolve the next Work cycle in one shared helper with this precedence: the selected ordinary task's valid `focusModeId`, then the valid global `selectedFocusModeId`, then `manualSettings`. Selecting a global mode never mutates task binding, and No Task can never hold a persistent binding.
+- Capture an `activeCycleSnapshot` when a new cycle starts. The snapshot contains the applied mode id, all three durations, cycles-before-rest, auto-start preference, focus track/none, volume, and notification mode. Pause/Resume preserves it; Work completion and an auto-started Break/Rest reuse it; Reset, Stop, Skip-to-ready-Work, and completed Break/Rest ready transitions clear it.
+- Use the Work snapshot's `appliedFocusModeId` for `SessionEvent.focusModeId`. Editing, deleting, or rebinding a mode after start cannot change the snapshot or historical event reference.
+- Delete a custom mode with one storage update that removes the mode, clears matching task bindings, clears matching global selection, and leaves SessionEvents and any active snapshot untouched. Built-ins are never editable or deletable.
+- Keep storage version 3. The new selection/manual/snapshot fields are additive and normalized from missing values, so v0/v1/v2 and existing v3 data remain backward-compatible without a semantic migration boundary or destructive transform.
+- Do not expose `sessionGoal` or `notificationMode` in the Phase 2 editor. Session goals have no product effect before Phase 3, and notification variants do not yet have honest runtime behavior. Preserve normalized values in records/snapshots for forward compatibility, but avoid controls that imply implemented behavior.
+- Reject duplicate custom titles case-insensitively and generate custom ids internally. CRUD helpers return explicit validation failures; canonical built-in ids and records always win normalization.
+- Treat `manualSettings`, global selection, task binding, and canonical mode records as authoritative inputs. The persisted `settings` object is only a compatibility/materialized representation of the global selection or manual baseline; it never materializes a task override, and background start/completion never trusts it as the effective-mode authority.
+- The UI shows active-cycle values from `activeCycleSnapshot` and next-Work values from the shared resolver. Saving the current configuration as a custom mode uses the next-Work preview (including a selected task override), never a hidden active snapshot.
+- Keep the Work snapshot on both auto-started and ready Break/Rest states. Manual Break/Rest start and Pause/Resume reuse it. Determine Resume from `isPaused`, cycle identity, and snapshot rather than comparing remaining time with live settings. Completed Break/Rest, Reset/Stop, and Skip clear the snapshot and recalculate ready Work from current task/global/manual precedence.
+- For legacy/existing v3 running, paused, or ready Break/Rest state without a snapshot, normalize one from the then-persisted settings and persist it during `initializeStorage`. Chrome and Firefox startup/ensure-ready paths must initialize storage before any editable UI can change settings. Imported timers are always safe idle with `activeCycleSnapshot: null`.
+- Serialize create, update, delete, global selection, task binding, and manual-settings mutations through explicit typed runtime messages on the same background operation queue as timer completion. Each handler re-reads normalized storage and writes all affected keys once. UI state follows the authoritative response/storage listener.
+- Resolve Firefox running-Work focus music from snapshot track/none and volume. Chrome background derives session duration, event mode id, cycles-before-rest, auto-start, and Break/Rest duration from snapshot; Chrome offscreen continues to carry only the cycle-scoped schedule payload supplied by background and never reconstructs configuration from live settings.
+- A language-only settings save updates the language field in both compatibility settings and manual settings without clearing global selection. Changing any mode-controlled duration, cycle, auto-start, track, enabled state, or volume is an explicit manual edit: update the manual baseline and clear global selection.
+- Serialize task select/create/edit/delete/archive/restore on the same background queue as Focus Mode mutation and timer completion. Offscreen handles only its four scheduler messages and never responds to UI/domain messages.
+- Normalize Phase 1 ready Work (`work`, not running, not paused, no target or cycle id) to `cycleStarted: false` and `activeCycleSnapshot: null`; this state is a new cycle, unlike paused Work or ready Break/Rest.
 
 ## Outcomes & Retrospective
 
 Phase 0 implementation, static concurrency review, automated Firefox runtime verification, QA-Agent approval, and the scoped baseline commit are complete. The Firefox runtime has one background-owned focus-music reconciler and no UI-owned player, while layout styles, storage schema, permissions, donation configuration, entitlements, feature gates, and Focus Modes remain unchanged. Diff, TypeScript, Firefox build, popup load, timer/music state transitions, rapid pause stress, app-window de-duplication, exact-once completion, notification count, and legacy normalization checks pass without extension console errors. `web-ext lint`, subjective full-length Stream continuity, and UI-driven JSON file-picker flows remain documented manual release risks; they do not block subsequent Phase 1 planning.
 
 Phase 1 implementation, automated verification, and QA-Agent review are complete. Storage v3 preserves legacy user data, installs canonical built-in Focus Modes without changing current settings, and records new completed Work cycles as exact-once SessionEvents alongside the existing aggregates. Cycle identity rejects stale Chrome completion messages; Pause/Resume preserves the original start; ready, Reset, Skip, Break, and Rest transitions clear identity as appropriate. Chrome background is the only TimerState writer, while offscreen only schedules expiry and plays a chime after acknowledged completion. JSON round-trips modes and events while imports force a safe idle timer. No layout, CSS, permission, donation, entitlement, feature-gate, or Focus Mode UI change is part of this phase. Firefox runtime validation passed; Chrome received static, TypeScript, build, and independent QA coverage, with live Chrome runtime remaining a non-blocking follow-up risk.
+
+Phase 2 is complete and approved. The implementation uses an explicit nullable global mode id, a separately persisted manual-settings baseline, shared task/global/manual precedence, and a cycle-owned configuration snapshot while keeping schema version 3 through safe additive normalization. Selection, custom CRUD, task binding, deletion cleanup, manual restoration, effective resolution, active snapshots, Firefox music, Chrome completion, and popup/app storage synchronization use shared typed contracts and serialized runtime mutations.
+
+The final augmented harness, diff check, TypeScript, both production builds, Firefox package lint, clean-profile Firefox 152 runtime automation, keyboard-only modal checks, and visual checks across popup/normal/maximized surfaces, light/dark themes, and English/Russian pass. QA-Agent verdict is `APPROVE`. No feature gate, count limit, entitlement, donation, dependency, permission, manifest version, or application version was added. Residual non-blocking risks are live Chrome runtime coverage and subjective audio/notification audibility, which cannot be proven by the headless Firefox run; the four existing lint warnings remain documented.
 
 ## Context and Orientation
 
@@ -616,6 +665,27 @@ interface EntitlementState {
 }
 ```
 
+Phase 2 local-only interfaces extend storage v3 additively:
+
+```ts
+interface FocusModeSnapshot {
+  appliedFocusModeId: string | null;
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longRestMinutes: number;
+  cyclesBeforeRest: number;
+  autoStartBreaks: boolean;
+  soundTrack: FocusMusicTrack | 'none';
+  soundVolume: number;
+  notificationMode: FocusNotificationMode;
+}
+
+interface StoredData {
+  selectedFocusModeId: string | null;
+  manualSettings: Settings;
+}
+```
+
 Backend endpoints:
 
 ```text
@@ -652,3 +722,13 @@ Revision note 2026-07-11 23:59 +04:00: Recorded the completed storage v3 impleme
 Revision note 2026-07-12 00:53 +04:00: Recorded QA's offscreen stale-write and legacy paused-start findings, the background-owned Chrome TimerState decision, acknowledged completion audio, null-start preservation, successful rebuilds, and the pending QA re-review.
 
 Revision note 2026-07-12 00:58 +04:00: Recorded final QA-Agent approval, completed Phase 1 storage/event milestones, fresh successful checks and builds, and the non-blocking absence of a live Chrome runtime pass.
+
+Revision note 2026-07-12 19:12 +04:00: Started Phase 2 after the mandatory repository/document audit. Added the explicit Default/global/task selection model, shared precedence, preserved manual baseline, active-cycle snapshot lifecycle, atomic deletion semantics, deferred non-functional editor fields, and the backward-compatible decision to keep storage version 3 before substantial implementation.
+
+Revision note 2026-07-12 19:20 +04:00: Incorporated QA-Agent's first design challenge. Clarified authoritative inputs versus compatibility settings, retained snapshots through ready Break/Rest, required persisted legacy snapshot normalization, moved all mode mutations onto the background queue, made runtime audio/completion snapshot-owned, and defined language-only/manual-edit and Save-current-preview behavior.
+
+Revision note 2026-07-12 19:35 +04:00: Recorded QA design approval and the first complete Phase 2 implementation slice: domain/storage/runtime contracts, large-window UI, task binding, bilingual accessibility strings, successful TypeScript, and a passing migration/domain harness. Build, packaged runtime, visual QA, documentation reconciliation, and final QA remain pending.
+
+Revision note 2026-07-12 19:49 +04:00: Recorded passing Chrome/Firefox builds, Firefox lint, isolated Firefox 152 runtime coverage, final visual evidence for popup/normal/maximized light/dark RU/EN layouts, the compositor-settle discovery, and the remaining final QA/commit gate.
+
+Revision note 2026-07-12 20:27 +04:00: Closed final QA findings around dangling materialization, authoritative duration, stale task writes, legacy ready Work, offscreen message ownership, and modal focus containment. Recorded repeated post-fix harness/static/build/lint/runtime/keyboard/visual PASS, final QA-Agent `APPROVE`, Phase 2 completion, and residual non-blocking risks.

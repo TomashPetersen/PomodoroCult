@@ -5,7 +5,13 @@ import {
   SETTINGS_FIELDS,
   TASK_TITLE_MAX_LENGTH
 } from './constants';
-import { normalizeFocusModes } from './focusModes';
+import {
+  focusModeToSnapshot,
+  materializeSnapshotSettings,
+  normalizeFocusModeSnapshot,
+  normalizeFocusModes,
+  settingsToFocusModeSnapshot
+} from './focusModes';
 import { getTaskTitle } from './i18n';
 import {
   CURRENT_STORAGE_VERSION,
@@ -36,6 +42,7 @@ export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerS
   targetEndTime: null,
   cycleId: null,
   cycleStartedAt: null,
+  activeCycleSnapshot: null,
   activeTaskId: null,
   completedSessions: 0
 });
@@ -643,9 +650,21 @@ export const setLocal = (value: Partial<PersistedStorage>): Promise<void> =>
   });
 
 export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): StoredData => {
-  const settings = normalizeSettings(stored.settings);
+  const rawSettings = normalizeSettings(stored.settings);
+  const manualSettings = normalizeSettings(stored.manualSettings ?? stored.settings);
   const focusModes = normalizeFocusModes(stored.focusModes);
   const validFocusModeIds = new Set(focusModes.map((mode) => mode.id));
+  const selectedFocusModeId =
+    typeof stored.selectedFocusModeId === 'string' &&
+    validFocusModeIds.has(stored.selectedFocusModeId.trim())
+      ? stored.selectedFocusModeId.trim()
+      : null;
+  const selectedMode = selectedFocusModeId
+    ? focusModes.find((mode) => mode.id === selectedFocusModeId)
+    : undefined;
+  const settings = selectedMode
+    ? materializeSnapshotSettings(focusModeToSnapshot(selectedMode), rawSettings)
+    : manualSettings;
   const timerDefaults = defaultTimerState(settings);
   const storedMode = stored.timerState?.currentMode ?? timerDefaults.currentMode;
   const storedRemainingSeconds =
@@ -666,6 +685,27 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     stored.timerState?.targetEndTime == null &&
     storedRemainingSeconds > 0 &&
     storedRemainingSeconds < getDurationSeconds(settings, storedMode);
+  const isRunning = Boolean(stored.timerState?.isRunning);
+  const isPaused =
+    typeof stored.timerState?.isPaused === 'boolean'
+      ? stored.timerState.isPaused
+      : legacyIsPaused;
+  const cycleId =
+    typeof stored.timerState?.cycleId === 'string' && stored.timerState.cycleId.trim()
+      ? stored.timerState.cycleId.trim()
+      : null;
+  const isReadyNewWork =
+    storedMode === 'work' &&
+    !isRunning &&
+    !isPaused &&
+    stored.timerState?.targetEndTime == null &&
+    cycleId === null;
+  const cycleStarted = isReadyNewWork
+    ? false
+    :
+    typeof stored.timerState?.cycleStarted === 'boolean'
+      ? stored.timerState.cycleStarted
+      : legacyCycleStarted;
   const timerState: TimerState = {
     ...timerDefaults,
     ...(stored.timerState ?? {}),
@@ -673,27 +713,22 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     remainingSeconds: storedRemainingSeconds,
     completedSessions: storedCompletedSessions,
     targetEndTime: stored.timerState?.targetEndTime ?? null,
-    cycleId:
-      typeof stored.timerState?.cycleId === 'string' && stored.timerState.cycleId.trim()
-        ? stored.timerState.cycleId.trim()
-        : null,
+    cycleId,
     cycleStartedAt:
       typeof stored.timerState?.cycleStartedAt === 'number' &&
       Number.isFinite(stored.timerState.cycleStartedAt) &&
       stored.timerState.cycleStartedAt >= 0
         ? Math.floor(stored.timerState.cycleStartedAt)
         : null,
+    activeCycleSnapshot: isReadyNewWork
+      ? null
+      : normalizeFocusModeSnapshot(stored.timerState?.activeCycleSnapshot, settings) ??
+        (cycleStarted ? settingsToFocusModeSnapshot(settings) : null),
     activeTaskId: stored.timerState?.activeTaskId ?? null,
-    isRunning: Boolean(stored.timerState?.isRunning),
-    isPaused:
-      typeof stored.timerState?.isPaused === 'boolean'
-        ? stored.timerState.isPaused
-        : legacyIsPaused,
+    isRunning,
+    isPaused,
     revision: Math.max(0, Number(stored.timerState?.revision) || 0),
-    cycleStarted:
-      typeof stored.timerState?.cycleStarted === 'boolean'
-        ? stored.timerState.cycleStarted
-        : legacyCycleStarted
+    cycleStarted
   };
 
   return {
@@ -703,6 +738,8 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     timerState,
     statistics: normalizeStatistics(stored.statistics),
     focusModes,
+    selectedFocusModeId,
+    manualSettings,
     sessionEvents: normalizeSessionEvents(stored.sessionEvents),
     theme: stored.theme === 'dark' ? 'dark' : 'light'
   };
@@ -746,7 +783,8 @@ export const initializeStorage = async (): Promise<StoredData> => {
 
 const getSafeImportedTimerState = (data: StoredData): TimerState => ({
   ...defaultTimerState(data.settings),
-  activeTaskId: data.timerState.activeTaskId
+  activeTaskId: data.timerState.activeTaskId,
+  activeCycleSnapshot: null
 });
 
 export const createExportDocument = async (): Promise<ExportedDataDocument> => {
@@ -769,6 +807,8 @@ const hasImportableStorageKey = (value: Record<string, unknown>): boolean =>
   'timerState' in value ||
   'statistics' in value ||
   'focusModes' in value ||
+  'selectedFocusModeId' in value ||
+  'manualSettings' in value ||
   'sessionEvents' in value ||
   'theme' in value;
 

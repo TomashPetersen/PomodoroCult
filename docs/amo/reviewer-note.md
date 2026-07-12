@@ -33,9 +33,21 @@ Required permission:
 Data handling:
 
 - all extension data is stored locally in browser extension storage
+- storage version 3 adds local Focus Mode definitions, optional task-to-mode references, timer cycle identity, and timestamped events for newly completed Work sessions
+- legacy aggregate statistics are preserved and are not expanded into fabricated timestamped events
+- JSON backup/import includes Focus Modes and SessionEvents; imported timers are restored to a safe idle state
+- Focus Mode global/manual selection, custom modes, and optional task bindings remain local and are included in JSON backup/import
+- a cycle-owned configuration snapshot prevents later mode edits, deletion, or task rebinding from changing a running or paused timer
 - no account system
 - no remote backend
 - no telemetry
+
+Current monetization status:
+
+- Focus Modes selector, custom-mode editor, and task binding are available as free ungated local features
+- no Focus Mode count limit or task-binding paywall is present
+- no donation URL is enabled
+- no Pro feature gate, entitlement, license key, payment request, or licensing server is present
 
 Support contact:
 

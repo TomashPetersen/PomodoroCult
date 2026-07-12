@@ -46,8 +46,32 @@ export interface TimerState {
   targetEndTime: number | null;
   cycleId: string | null;
   cycleStartedAt: number | null;
+  activeCycleSnapshot: FocusModeSnapshot | null;
   activeTaskId: string | null;
   completedSessions: number;
+}
+
+export interface FocusModeSnapshot {
+  appliedFocusModeId: string | null;
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longRestMinutes: number;
+  cyclesBeforeRest: number;
+  autoStartBreaks: boolean;
+  soundTrack: FocusMusicTrack | 'none';
+  soundVolume: number;
+  notificationMode: FocusNotificationMode;
+}
+
+export interface FocusModeEditableValues {
+  title: string;
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longRestMinutes: number;
+  cyclesBeforeRest: number;
+  autoStartBreaks: boolean;
+  soundTrack: FocusMusicTrack | 'none';
+  soundVolume: number;
 }
 
 export interface FocusMode {
@@ -102,6 +126,8 @@ export interface StoredData {
   timerState: TimerState;
   statistics: Statistics;
   focusModes: FocusMode[];
+  selectedFocusModeId: string | null;
+  manualSettings: Settings;
   sessionEvents: SessionEvent[];
   theme: ThemeMode;
 }
@@ -140,6 +166,24 @@ export type RuntimeMessage =
   | { type: 'POPUP_SKIP_SHORT_BREAK' }
   | { type: 'POPUP_ENSURE_READY' }
   | { type: 'DELETE_TASK_STATISTICS'; payload: { taskId: string } }
+  | { type: 'SELECT_FOCUS_MODE'; payload: { focusModeId: string | null } }
+  | { type: 'CREATE_FOCUS_MODE'; payload: { values: FocusModeEditableValues } }
+  | {
+      type: 'UPDATE_FOCUS_MODE';
+      payload: { focusModeId: string; values: FocusModeEditableValues };
+    }
+  | { type: 'DELETE_FOCUS_MODE'; payload: { focusModeId: string } }
+  | {
+      type: 'SET_TASK_FOCUS_MODE';
+      payload: { taskId: string; focusModeId: string | null };
+    }
+  | { type: 'SAVE_MANUAL_SETTINGS'; payload: { settings: Settings } }
+  | { type: 'SELECT_TASK'; payload: { taskId: string | null } }
+  | { type: 'ADD_TASK'; payload: { title: string; select: boolean } }
+  | { type: 'UPDATE_TASK'; payload: { taskId: string; title: string } }
+  | { type: 'DELETE_TASK'; payload: { taskId: string } }
+  | { type: 'ARCHIVE_TASK'; payload: { taskId: string } }
+  | { type: 'RESTORE_TASK'; payload: { taskId: string } }
   | {
       type: 'OPEN_APP_WINDOW';
       payload?: { screen?: AppScreen; statsView?: StatsView };
@@ -182,6 +226,8 @@ export const STORAGE_KEYS = {
   timerState: 'timerState',
   statistics: 'statistics',
   focusModes: 'focusModes',
+  selectedFocusModeId: 'selectedFocusModeId',
+  manualSettings: 'manualSettings',
   sessionEvents: 'sessionEvents',
   theme: 'theme',
   migrationBackup: 'migrationBackup'

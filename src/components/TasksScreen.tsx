@@ -13,6 +13,7 @@ export const TasksScreen = () => {
   const locale = useAppStore((state) => state.locale);
   const settings = useAppStore((state) => state.settings);
   const tasks = useAppStore((state) => state.tasks);
+  const focusModes = useAppStore((state) => state.focusModes);
   const timerState = useAppStore((state) => state.timerState);
   const highlightedTaskId = useAppStore((state) => state.highlightedTaskId);
   const taskActionError = useAppStore((state) => state.taskActionError);
@@ -21,6 +22,7 @@ export const TasksScreen = () => {
   const deleteTask = useAppStore((state) => state.deleteTask);
   const archiveTask = useAppStore((state) => state.archiveTask);
   const restoreTask = useAppStore((state) => state.restoreTask);
+  const setTaskFocusMode = useAppStore((state) => state.setTaskFocusMode);
   const clearTaskActionError = useAppStore((state) => state.clearTaskActionError);
   const [tab, setTab] = useState<TaskTab>('active');
   const [title, setTitle] = useState('');
@@ -138,13 +140,20 @@ export const TasksScreen = () => {
                     className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-[#f0f3f6] px-2 text-sm text-zinc-950 outline-none focus:border-rose-400 dark:border-zinc-700 dark:bg-[#0d1117] dark:text-[#f0f3f6]"
                   />
                 ) : (
-                  <span
-                    className={cn(
-                      'line-clamp-2 min-w-0 flex-1 break-words py-0.5 font-medium leading-5 text-zinc-900 dark:text-zinc-100',
-                      task.title.length > 24 ? 'text-xs' : 'text-sm'
+                  <span className="min-w-0 flex-1 py-0.5">
+                    <span
+                      className={cn(
+                        'line-clamp-2 block break-words font-medium leading-5 text-zinc-900 dark:text-zinc-100',
+                        task.title.length > 24 ? 'text-xs' : 'text-sm'
+                      )}
+                    >
+                      {getTaskTitle(locale, task.id, task.title)}
+                    </span>
+                    {task.focusModeId && (
+                      <span className="mt-1 block max-w-full truncate text-[10px] font-semibold text-violet-600 dark:text-violet-300">
+                        {focusModes.find((mode) => mode.id === task.focusModeId)?.title}
+                      </span>
                     )}
-                  >
-                    {getTaskTitle(locale, task.id, task.title)}
                   </span>
                 )}
 
@@ -182,6 +191,24 @@ export const TasksScreen = () => {
                   </>
                 ) : (
                   <>
+                    {!system && (
+                      <label className="shrink-0">
+                        <span className="sr-only">{t(locale, 'focusModeTaskBinding')}</span>
+                        <select
+                          value={task.focusModeId ?? ''}
+                          onChange={(event) => void setTaskFocusMode(task.id, event.target.value || null)}
+                          className={cn(
+                            'h-8 w-[6.5rem] truncate rounded-lg border px-2 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-violet-300',
+                            task.focusModeId
+                              ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200'
+                              : 'border-zinc-200 bg-[#f0f3f6] text-zinc-500 dark:border-zinc-700 dark:bg-[#0d1117] dark:text-zinc-400'
+                          )}
+                        >
+                          <option value="">{t(locale, 'focusModeNoBinding')}</option>
+                          {focusModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.title}</option>)}
+                        </select>
+                      </label>
+                    )}
                     {!system && (
                       <ActionIconButton
                         type="button"

@@ -1,23 +1,31 @@
 import { NO_TASK_ID } from './lib/constants';
 import {
+  getSnapshotDurationSeconds,
+  resolveNextWorkSnapshot
+} from './lib/focusModes';
+import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
+import { applyTaskMutation, TaskMutationMessage } from './lib/taskMutations';
+import {
   addSessionStatistics,
   createCycleId,
   createSessionEvent,
   ensureNoTask,
-  getDurationSeconds,
   getNextTimerRevision,
   getRunningDisplaySeconds,
-  getStartDurationSeconds,
-  getStartTargetEndTime,
   initializeStorage,
-  isResumingPausedTimer,
   readStoredData,
   removeTaskSessionEvents,
   removeTaskStatistics,
   setLocal,
   sortTasks
 } from './lib/storage';
-import { RuntimeMessage, StartTimerPayload, TimerMode, TimerState } from './lib/types';
+import {
+  FocusModeSnapshot,
+  RuntimeMessage,
+  StartTimerPayload,
+  TimerMode,
+  TimerState
+} from './lib/types';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
 
@@ -137,7 +145,8 @@ const buildRunningState = (
   targetEndTime: number,
   activeTaskId: string | null,
   cycleId: string,
-  cycleStartedAt: number | null
+  cycleStartedAt: number | null,
+  activeCycleSnapshot: FocusModeSnapshot
 ): TimerState => ({
   ...timerState,
   isRunning: true,
@@ -149,12 +158,12 @@ const buildRunningState = (
   targetEndTime,
   cycleId,
   cycleStartedAt,
+  activeCycleSnapshot,
   activeTaskId
 });
 
 const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<TimerState> => {
   const data = await readStoredData();
-  const { settings } = data;
   let { tasks, timerState } = data;
 
   if (timerState.isRunning) {
@@ -193,9 +202,26 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     );
   }
 
-  const durationSeconds = getStartDurationSeconds(settings, timerState, mode);
-  const targetEndTime = getStartTargetEndTime(settings, timerState, mode, startedAt);
-  const isResume = isResumingPausedTimer(settings, timerState, mode);
+  const isResume =
+    timerState.isPaused &&
+    timerState.cycleStarted &&
+    timerState.currentMode === mode &&
+    timerState.activeCycleSnapshot !== null;
+  const activeCycleSnapshot = isResume
+    ? timerState.activeCycleSnapshot!
+    : mode !== 'work' && timerState.activeCycleSnapshot
+      ? timerState.activeCycleSnapshot
+      : resolveNextWorkSnapshot({
+          focusModes: data.focusModes,
+          tasks: nextTasks,
+          activeTaskId: activeTaskId ?? null,
+          selectedFocusModeId: data.selectedFocusModeId,
+          manualSettings: data.manualSettings
+        });
+  const durationSeconds = isResume
+    ? timerState.remainingSeconds
+    : getSnapshotDurationSeconds(activeCycleSnapshot, mode);
+  const targetEndTime = startedAt + durationSeconds * 1000;
   const cycleId = isResume && timerState.cycleId ? timerState.cycleId : createCycleId();
   const cycleStartedAt = isResume ? timerState.cycleStartedAt : startedAt;
   const nextState = buildRunningState(
@@ -205,7 +231,8 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     targetEndTime,
     activeTaskId ?? null,
     cycleId,
-    cycleStartedAt
+    cycleStartedAt,
+    activeCycleSnapshot
   );
 
   await setLocal({
@@ -218,7 +245,7 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     targetEndTime,
     activeTaskId: activeTaskId ?? null,
     cycleId,
-    statSeconds: getDurationSeconds(settings, mode)
+    statSeconds: getSnapshotDurationSeconds(activeCycleSnapshot, mode)
   });
 
   return nextState;
@@ -260,7 +287,8 @@ const handlePauseTimer = async (): Promise<TimerState> => {
 };
 
 const handleResetTimer = async (): Promise<TimerState> => {
-  const { settings, timerState: storedTimerState } = await readStoredData();
+  const data = await readStoredData();
+  const { timerState: storedTimerState } = data;
   const timerState =
     storedTimerState.isRunning &&
     storedTimerState.targetEndTime &&
@@ -273,6 +301,13 @@ const handleResetTimer = async (): Promise<TimerState> => {
           cycleId: storedTimerState.cycleId ?? ''
         })).timerState
       : storedTimerState;
+  const nextWorkSnapshot = resolveNextWorkSnapshot({
+    focusModes: data.focusModes,
+    tasks: data.tasks,
+    activeTaskId: timerState.activeTaskId,
+    selectedFocusModeId: data.selectedFocusModeId,
+    manualSettings: data.manualSettings
+  });
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
@@ -280,10 +315,11 @@ const handleResetTimer = async (): Promise<TimerState> => {
     cycleStarted: false,
     revision: getNextTimerRevision(timerState),
     currentMode: 'work',
-    remainingSeconds: getDurationSeconds(settings, 'work'),
+    remainingSeconds: getSnapshotDurationSeconds(nextWorkSnapshot, 'work'),
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    activeCycleSnapshot: null,
     completedSessions: 0
   };
 
@@ -293,22 +329,32 @@ const handleResetTimer = async (): Promise<TimerState> => {
 };
 
 const handleSkipShortBreak = async (): Promise<TimerState> => {
-  const { settings, timerState } = await readStoredData();
+  const data = await readStoredData();
+  const { timerState } = data;
 
   if (timerState.currentMode !== 'shortBreak') {
     return timerState;
   }
 
+  const nextWorkSnapshot = resolveNextWorkSnapshot({
+    focusModes: data.focusModes,
+    tasks: data.tasks,
+    activeTaskId: timerState.activeTaskId,
+    selectedFocusModeId: data.selectedFocusModeId,
+    manualSettings: data.manualSettings
+  });
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
     isPaused: false,
+    cycleStarted: false,
     revision: getNextTimerRevision(timerState),
     currentMode: 'work',
-    remainingSeconds: getDurationSeconds(settings, 'work'),
+    remainingSeconds: getSnapshotDurationSeconds(nextWorkSnapshot, 'work'),
     targetEndTime: null,
     cycleId: null,
-    cycleStartedAt: null
+    cycleStartedAt: null,
+    activeCycleSnapshot: null
   };
 
   await stopOffscreenTimer();
@@ -320,7 +366,6 @@ const handleTimerCompleted = async (
   payload: Extract<RuntimeMessage, { type: 'TIMER_COMPLETED' }>['payload']
 ): Promise<TimerCompletionResult> => {
   const data = await readStoredData();
-  const { settings } = data;
   let { tasks, statistics, sessionEvents, timerState } = data;
 
   if (
@@ -333,17 +378,19 @@ const handleTimerCompleted = async (
   }
 
   if (payload.mode === 'work') {
+    const snapshot = timerState.activeCycleSnapshot;
+    if (!snapshot) return { timerState, completed: false };
     tasks = ensureNoTask(tasks);
     const activeTaskId = timerState.activeTaskId ?? payload.activeTaskId ?? NO_TASK_ID;
     const activeTask = tasks.find((task) => task.id === activeTaskId);
     const taskTitle = activeTask?.title ?? '';
     const completedSessions = timerState.completedSessions + 1;
     const nextMode =
-      completedSessions % settings.longBreakInterval === 0 ? 'longBreak' : 'shortBreak';
-    const nextDuration = getDurationSeconds(settings, nextMode);
+      completedSessions % snapshot.cyclesBeforeRest === 0 ? 'longBreak' : 'shortBreak';
+    const nextDuration = getSnapshotDurationSeconds(snapshot, nextMode);
     const completedAt = Date.now();
-    const durationSeconds = payload.statSeconds || getDurationSeconds(settings, 'work');
-    const nextTargetEndTime = settings.autoStartBreaks
+    const durationSeconds = getSnapshotDurationSeconds(snapshot, 'work');
+    const nextTargetEndTime = snapshot.autoStartBreaks
       ? completedAt + nextDuration * 1000
       : null;
     const nextCycleId = nextTargetEndTime ? createCycleId() : null;
@@ -361,7 +408,7 @@ const handleTimerCompleted = async (
         cycleId: timerState.cycleId,
         taskId: activeTaskId,
         taskTitleSnapshot: taskTitle,
-        focusModeId: null,
+        focusModeId: snapshot.appliedFocusModeId,
         cycleStartedAt: timerState.cycleStartedAt,
         completedAt,
         durationSeconds
@@ -370,7 +417,7 @@ const handleTimerCompleted = async (
 
     const nextState: TimerState = {
       ...timerState,
-      isRunning: settings.autoStartBreaks,
+      isRunning: snapshot.autoStartBreaks,
       isPaused: false,
       revision: getNextTimerRevision(timerState),
       currentMode: nextMode,
@@ -396,23 +443,32 @@ const handleTimerCompleted = async (
         targetEndTime: nextTargetEndTime,
         activeTaskId,
         cycleId: nextCycleId!,
-        statSeconds: getDurationSeconds(settings, nextMode)
+        statSeconds: getSnapshotDurationSeconds(snapshot, nextMode)
       });
     }
 
     return { timerState: nextState, completed: true };
   }
 
+  const nextWorkSnapshot = resolveNextWorkSnapshot({
+    focusModes: data.focusModes,
+    tasks: data.tasks,
+    activeTaskId: timerState.activeTaskId,
+    selectedFocusModeId: data.selectedFocusModeId,
+    manualSettings: data.manualSettings
+  });
   const nextState: TimerState = {
     ...timerState,
     isRunning: false,
     isPaused: false,
+    cycleStarted: false,
     revision: getNextTimerRevision(timerState),
     currentMode: 'work',
-    remainingSeconds: getDurationSeconds(settings, 'work'),
+    remainingSeconds: getSnapshotDurationSeconds(nextWorkSnapshot, 'work'),
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    activeCycleSnapshot: null,
     activeTaskId: timerState.activeTaskId
   };
 
@@ -426,6 +482,54 @@ const handleDeleteTaskStatistics = async (taskId: string) => {
   const nextSessionEvents = removeTaskSessionEvents(sessionEvents, taskId);
   await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
   return { statistics: nextStatistics, sessionEvents: nextSessionEvents };
+};
+
+const handleFocusModeMutation = async (message: FocusModeMutationMessage) => {
+  const data = await readStoredData();
+  const result = applyFocusModeMutation(data, message);
+  const nextData = { ...data, ...result.patch };
+  const nextWorkSnapshot = resolveNextWorkSnapshot({
+    focusModes: nextData.focusModes,
+    tasks: nextData.tasks,
+    activeTaskId: nextData.timerState.activeTaskId,
+    selectedFocusModeId: nextData.selectedFocusModeId,
+    manualSettings: nextData.manualSettings
+  });
+  const timerState = !nextData.timerState.cycleStarted && nextData.timerState.currentMode === 'work'
+    ? {
+        ...nextData.timerState,
+        revision: getNextTimerRevision(nextData.timerState),
+        remainingSeconds: getSnapshotDurationSeconds(nextWorkSnapshot, 'work'),
+        activeCycleSnapshot: null
+      }
+    : nextData.timerState;
+  const patch = timerState === nextData.timerState ? result.patch : { ...result.patch, timerState };
+  await setLocal(patch);
+  return { ...patch, ...(result.focusModeId ? { focusModeId: result.focusModeId } : {}) };
+};
+
+const handleTaskMutation = async (message: TaskMutationMessage) => {
+  const data = await readStoredData();
+  const result = applyTaskMutation(data, message);
+  const nextData = { ...data, ...result.patch };
+  const nextWorkSnapshot = resolveNextWorkSnapshot({
+    focusModes: nextData.focusModes,
+    tasks: nextData.tasks,
+    activeTaskId: nextData.timerState.activeTaskId,
+    selectedFocusModeId: nextData.selectedFocusModeId,
+    manualSettings: nextData.manualSettings
+  });
+  const timerState = !nextData.timerState.cycleStarted && nextData.timerState.currentMode === 'work'
+    ? {
+        ...nextData.timerState,
+        revision: getNextTimerRevision(nextData.timerState),
+        remainingSeconds: getSnapshotDurationSeconds(nextWorkSnapshot, 'work'),
+        activeCycleSnapshot: null
+      }
+    : nextData.timerState;
+  const patch = timerState === nextData.timerState ? result.patch : { ...result.patch, timerState };
+  await setLocal(patch);
+  return { ...patch, ...(result.taskId ? { taskId: result.taskId } : {}) };
 };
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -475,6 +579,26 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         const result = await enqueueTimerOperation(() =>
           handleDeleteTaskStatistics(message.payload.taskId)
         );
+        sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'SELECT_FOCUS_MODE':
+      case 'CREATE_FOCUS_MODE':
+      case 'UPDATE_FOCUS_MODE':
+      case 'DELETE_FOCUS_MODE':
+      case 'SET_TASK_FOCUS_MODE':
+      case 'SAVE_MANUAL_SETTINGS': {
+        const result = await enqueueTimerOperation(() => handleFocusModeMutation(message));
+        sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'SELECT_TASK':
+      case 'ADD_TASK':
+      case 'UPDATE_TASK':
+      case 'DELETE_TASK':
+      case 'ARCHIVE_TASK':
+      case 'RESTORE_TASK': {
+        const result = await enqueueTimerOperation(() => handleTaskMutation(message));
         sendResponse({ ok: true, ...result });
         return;
       }

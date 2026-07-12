@@ -5,7 +5,6 @@ import { formatClock } from '../lib/format';
 import {
   canStartTimerMode,
   formatCompactCount,
-  getDurationSeconds,
   getTimerLifecycleState,
   getTaskSessionCount,
   getRunningDisplaySeconds,
@@ -19,6 +18,7 @@ import { TaskSelect } from './TaskSelect';
 import { FocusMusicPopover } from './FocusMusicPopover';
 import { TASK_TITLE_MAX_LENGTH } from '../lib/constants';
 import { TooltipBubble } from './TooltipBubble';
+import { getSnapshotDurationSeconds, resolveNextWorkSnapshot } from '../lib/focusModes';
 
 interface TimerScreenProps {
   surface?: 'popup' | 'appWindow';
@@ -31,6 +31,9 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
   const timerState = useAppStore((state) => state.timerState);
   const statistics = useAppStore((state) => state.statistics);
   const tasks = useAppStore((state) => state.tasks);
+  const focusModes = useAppStore((state) => state.focusModes);
+  const selectedFocusModeId = useAppStore((state) => state.selectedFocusModeId);
+  const manualSettings = useAppStore((state) => state.manualSettings);
   const selectedMode = useAppStore((state) => state.selectedTimerMode);
   const pulseStartMode = useAppStore((state) => state.pulseStartMode);
   const runtimeError = useAppStore((state) => state.runtimeError);
@@ -50,7 +53,16 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
   const musicPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const displayMode = selectedMode;
-  const modeDuration = getDurationSeconds(settings, displayMode);
+  const displaySnapshot = timerState.cycleStarted && timerState.activeCycleSnapshot
+    ? timerState.activeCycleSnapshot
+    : resolveNextWorkSnapshot({
+        focusModes,
+        tasks,
+        activeTaskId: timerState.activeTaskId,
+        selectedFocusModeId,
+        manualSettings
+      });
+  const modeDuration = getSnapshotDurationSeconds(displaySnapshot, displayMode);
   const runningDisplaySeconds =
     timerState.isRunning && timerState.targetEndTime
       ? getRunningDisplaySeconds(timerState.targetEndTime, now)
@@ -60,7 +72,7 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
       ? runningDisplaySeconds
     : selectedMode === timerState.currentMode
       ? timerState.remainingSeconds
-      : getDurationSeconds(settings, selectedMode);
+      : getSnapshotDurationSeconds(displaySnapshot, selectedMode);
   const progress = Math.max(0, Math.min(1, displaySeconds / Math.max(1, modeDuration)));
   const radius = 112;
   const circumference = 2 * Math.PI * radius;
@@ -154,9 +166,9 @@ export const TimerScreen = ({ surface = 'popup' }: TimerScreenProps) => {
     };
   }, [timerState.isRunning, timerState.targetEndTime]);
   const tabs: Array<{ mode: TimerMode; minutes: number }> = [
-    { mode: 'work', minutes: settings.workTime },
-    { mode: 'shortBreak', minutes: settings.shortBreak },
-    { mode: 'longBreak', minutes: settings.longBreak }
+    { mode: 'work', minutes: displaySnapshot.workMinutes },
+    { mode: 'shortBreak', minutes: displaySnapshot.shortBreakMinutes },
+    { mode: 'longBreak', minutes: displaySnapshot.longRestMinutes }
   ];
 
   return (

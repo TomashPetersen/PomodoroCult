@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Calendar, HeartHandshake, Maximize2, Minimize2 } from 'lucide-react';
 import { AppWindowTodayWidget } from './components/AppWindowTodayWidget';
 import { FocusMusicPanel } from './components/FocusMusicPanel';
+import { FocusModePanel } from './components/FocusModePanel';
 import { FocusSummaryCards } from './components/FocusSummaryCards';
 import { DONATION_URL, QUICK_STATS_PERIODS } from './lib/constants';
 import { getStatsPeriodLabel, t } from './lib/i18n';
@@ -313,6 +314,7 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
               </div>
             </header>
 
+            <FocusModePanel />
             <FocusMusicPanel />
 
             <div

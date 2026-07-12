@@ -1,23 +1,22 @@
 import { create } from 'zustand';
 import { NO_TASK_ID } from '../lib/constants';
-import { normalizeFocusModes } from '../lib/focusModes';
+import {
+  getSnapshotDurationSeconds,
+  normalizeFocusModes,
+  resolveNextWorkSnapshot
+} from '../lib/focusModes';
 import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
 import {
   applyThemeClass,
   areTimerDurationsLocked,
   canStartTimerMode,
   clampTaskTitle,
-  createTask,
   createExportDocument,
   defaultTimerState,
-  ensureNoTask,
-  getDurationSeconds,
   getLocalDateKey,
   getNextTimerRevision,
   getPresetStatsRange,
   getRunningDisplaySeconds,
-  getStartDurationSeconds,
-  getStartTargetEndTime,
   hasStartedTimerCycle,
   hasActiveTaskTitle,
   initializeStorage,
@@ -36,6 +35,8 @@ import {
   DEFAULT_SETTINGS,
   Locale,
   FocusMusicTrack,
+  FocusMode,
+  FocusModeEditableValues,
   RuntimeMessage,
   SessionEvent,
   Settings,
@@ -58,6 +59,13 @@ interface RuntimeResponse {
   timerState?: TimerState;
   statistics?: Statistics;
   sessionEvents?: SessionEvent[];
+  settings?: Settings;
+  manualSettings?: Settings;
+  selectedFocusModeId?: string | null;
+  focusModes?: FocusMode[];
+  tasks?: Task[];
+  focusModeId?: string;
+  taskId?: string;
 }
 
 interface AppStore extends StoredData {
@@ -81,6 +89,7 @@ interface AppStore extends StoredData {
   highlightedTaskId: string | null;
   dataTransferMessage: string | null;
   dataTransferError: string | null;
+  focusModeError: string | null;
   initialize: () => Promise<void>;
   setScreen: (screen: AppScreen) => void;
   setTimerMode: (mode: TimerMode) => void;
@@ -96,6 +105,12 @@ interface AppStore extends StoredData {
     volume?: number;
     track?: FocusMusicTrack;
   }) => Promise<void>;
+  selectFocusMode: (focusModeId: string | null) => Promise<void>;
+  createFocusMode: (values: FocusModeEditableValues) => Promise<string | null>;
+  updateFocusMode: (focusModeId: string, values: FocusModeEditableValues) => Promise<void>;
+  deleteFocusMode: (focusModeId: string) => Promise<void>;
+  setTaskFocusMode: (taskId: string, focusModeId: string | null) => Promise<void>;
+  clearFocusModeError: () => void;
   exportUserData: () => Promise<void>;
   importUserData: (raw: string) => Promise<void>;
   clearDataTransferStatus: () => void;
@@ -125,6 +140,19 @@ interface AppStore extends StoredData {
   selectStatsTask: (taskId: string) => void;
   applyAutoStatsTask: (taskId: string | null) => void;
 }
+
+const getAuthoritativeFocusModePatch = (
+  response: RuntimeResponse
+): Partial<AppStore> => ({
+  ...(response.settings ? { settings: response.settings } : {}),
+  ...(response.manualSettings ? { manualSettings: response.manualSettings } : {}),
+  ...(response.selectedFocusModeId !== undefined
+    ? { selectedFocusModeId: response.selectedFocusModeId }
+    : {}),
+  ...(response.focusModes ? { focusModes: response.focusModes } : {}),
+  ...(response.tasks ? { tasks: response.tasks } : {}),
+  ...(response.timerState ? { timerState: response.timerState } : {})
+});
 
 let storageListenerAttached = false;
 let highlightedTaskTimeoutId: number | null = null;
@@ -209,6 +237,8 @@ const initialData: StoredData = {
   timerState: defaultTimerState(DEFAULT_SETTINGS),
   statistics: {},
   focusModes: normalizeFocusModes(),
+  selectedFocusModeId: null,
+  manualSettings: DEFAULT_SETTINGS,
   sessionEvents: [],
   theme: 'light'
 };
@@ -253,6 +283,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   highlightedTaskId: null,
   dataTransferMessage: null,
   dataTransferError: null,
+  focusModeError: null,
 
   initialize: async () => {
     try {
@@ -290,6 +321,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
             if (changes.focusModes?.newValue !== undefined) {
               patch.focusModes = normalizeFocusModes(changes.focusModes.newValue);
+            }
+
+            if (changes.selectedFocusModeId) {
+              patch.selectedFocusModeId =
+                typeof changes.selectedFocusModeId.newValue === 'string'
+                  ? changes.selectedFocusModeId.newValue
+                  : null;
+            }
+
+            if (changes.manualSettings?.newValue) {
+              patch.manualSettings = normalizeSettings(changes.manualSettings.newValue);
             }
 
             if (changes.sessionEvents?.newValue !== undefined) {
@@ -399,26 +441,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
           longBreak: currentSettings.longBreak
         }
       : normalizedSettings;
-    const locale = resolveLocale(settings.languagePreference);
-    const nextTimerState = durationsLocked
-      ? timerState
-      : timerState.isRunning
-        ? timerState
-        : {
-            ...timerState,
-            remainingSeconds: getDurationSeconds(settings, timerState.currentMode),
-            targetEndTime: null
-          };
-
-    set({
-      settings,
-      locale,
-      timerState: nextTimerState,
-      settingsOpen: false
+    const response = await sendRuntimeMessage({
+      type: 'SAVE_MANUAL_SETTINGS',
+      payload: { settings }
     });
-    await setLocal({
-      settings,
-      timerState: nextTimerState
+    if (!response?.ok) throw new Error(response?.error || 'Unable to save settings.');
+    const nextSettings = response.settings ?? settings;
+    set({
+      ...getAuthoritativeFocusModePatch(response),
+      settings: nextSettings,
+      locale: resolveLocale(nextSettings.languagePreference),
+      settingsOpen: false
     });
   },
 
@@ -430,9 +463,82 @@ export const useAppStore = create<AppStore>((set, get) => ({
       focusMusicTrack: track ?? get().settings.focusMusicTrack
     });
 
-    set({ settings });
-    await setLocal({ settings });
+    const response = await sendRuntimeMessage({
+      type: 'SAVE_MANUAL_SETTINGS',
+      payload: { settings }
+    });
+    if (!response?.ok) {
+      set({ focusModeError: response?.error || 'Unable to save focus music settings.' });
+      return;
+    }
+    set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
   },
+
+  selectFocusMode: async (focusModeId) => {
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'SELECT_FOCUS_MODE',
+        payload: { focusModeId }
+      });
+      if (!response?.ok) throw new Error(response?.error || 'Unable to select Focus Mode.');
+      set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
+    } catch (error) {
+      set({ focusModeError: getActionError(error, 'Unable to select Focus Mode.') });
+    }
+  },
+
+  createFocusMode: async (values) => {
+    try {
+      const response = await sendRuntimeMessage({ type: 'CREATE_FOCUS_MODE', payload: { values } });
+      if (!response?.ok) throw new Error(response?.error || 'Unable to create Focus Mode.');
+      set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
+      return response.focusModeId ?? null;
+    } catch (error) {
+      set({ focusModeError: getActionError(error, 'Unable to create Focus Mode.') });
+      return null;
+    }
+  },
+
+  updateFocusMode: async (focusModeId, values) => {
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'UPDATE_FOCUS_MODE',
+        payload: { focusModeId, values }
+      });
+      if (!response?.ok) throw new Error(response?.error || 'Unable to update Focus Mode.');
+      set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
+    } catch (error) {
+      set({ focusModeError: getActionError(error, 'Unable to update Focus Mode.') });
+    }
+  },
+
+  deleteFocusMode: async (focusModeId) => {
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'DELETE_FOCUS_MODE',
+        payload: { focusModeId }
+      });
+      if (!response?.ok) throw new Error(response?.error || 'Unable to delete Focus Mode.');
+      set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
+    } catch (error) {
+      set({ focusModeError: getActionError(error, 'Unable to delete Focus Mode.') });
+    }
+  },
+
+  setTaskFocusMode: async (taskId, focusModeId) => {
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'SET_TASK_FOCUS_MODE',
+        payload: { taskId, focusModeId }
+      });
+      if (!response?.ok) throw new Error(response?.error || 'Unable to bind Focus Mode.');
+      set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
+    } catch (error) {
+      set({ focusModeError: getActionError(error, 'Unable to bind Focus Mode.') });
+    }
+  },
+
+  clearFocusModeError: () => set({ focusModeError: null }),
 
   exportUserData: async () => {
     try {
@@ -500,17 +606,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }),
 
   startTimer: async (startedAt = Date.now()) => {
-    const { selectedTimerMode, locale, timerState, settings } = get();
+    const {
+      selectedTimerMode,
+      locale,
+      timerState,
+      settings,
+      focusModes,
+      selectedFocusModeId,
+      manualSettings,
+      tasks
+    } = get();
     if (!canStartTimerMode(settings, timerState, selectedTimerMode)) {
       return;
     }
 
-    const optimisticTargetEndTime = getStartTargetEndTime(
-      settings,
-      timerState,
-      selectedTimerMode,
-      startedAt
-    );
+    const isResume =
+      timerState.isPaused &&
+      timerState.currentMode === selectedTimerMode &&
+      timerState.activeCycleSnapshot !== null;
+    const activeCycleSnapshot = isResume ||
+      (selectedTimerMode !== 'work' && timerState.activeCycleSnapshot)
+      ? timerState.activeCycleSnapshot!
+      : resolveNextWorkSnapshot({
+          focusModes,
+          tasks,
+          activeTaskId: timerState.activeTaskId,
+          selectedFocusModeId,
+          manualSettings
+        });
+    const optimisticDuration = isResume
+      ? timerState.remainingSeconds
+      : getSnapshotDurationSeconds(activeCycleSnapshot, selectedTimerMode);
+    const optimisticTargetEndTime = startedAt + optimisticDuration * 1000;
     const optimisticTimerState: TimerState = {
       ...timerState,
       isRunning: true,
@@ -518,8 +645,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       cycleStarted: true,
       revision: getNextTimerRevision(timerState),
       currentMode: selectedTimerMode,
-      remainingSeconds: getStartDurationSeconds(settings, timerState, selectedTimerMode),
-      targetEndTime: optimisticTargetEndTime
+      remainingSeconds: optimisticDuration,
+      targetEndTime: optimisticTargetEndTime,
+      activeCycleSnapshot
     };
 
     set({
@@ -664,58 +792,51 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   selectTask: async (taskId) => {
-    const { settings, timerState, tasks } = get();
+    const { settings, timerState, locale } = get();
     if (isTimerTaskLocked(settings, timerState)) return;
-
-    const exists = taskId === null || tasks.some((task) => task.id === taskId);
-    if (!exists) return;
-
-    const nextTimerState: TimerState = {
-      ...timerState,
-      activeTaskId: taskId
-    };
-
-    set({ timerState: nextTimerState });
-    await setLocal({ timerState: nextTimerState });
+    try {
+      const response = await sendRuntimeMessage({ type: 'SELECT_TASK', payload: { taskId } });
+      if (!response?.ok) throw new Error(response?.error || 'TASK_NOT_FOUND');
+      set({ ...getAuthoritativeFocusModePatch(response), taskActionError: null });
+    } catch (error) {
+      set({ taskActionError: getActionError(error, t(locale, 'taskChangeRequiresStop')) });
+    }
   },
 
   addTask: async (rawTitle, options) => {
     const title = clampTaskTitle(rawTitle);
     if (!title) return null;
 
-    const { tasks, timerState } = get();
+    const { tasks } = get();
     if (hasActiveTaskTitle(tasks, title)) {
       set({ taskActionError: t(get().locale, 'taskDuplicateError') });
       return null;
     }
 
-    const task = createTask(title);
-    const nextTasks = sortTasks([...ensureNoTask(tasks), task]);
     const shouldSelect = options?.select ?? true;
     const shouldHighlight = options?.highlight ?? true;
-    const nextTimerState =
-      shouldSelect
-        ? {
-            ...timerState,
-            activeTaskId: task.id
-          }
-        : timerState;
-
-    set({
-      tasks: nextTasks,
-      ...(shouldSelect ? { timerState: nextTimerState } : {}),
-      highlightedTaskId: shouldHighlight ? task.id : null,
-      taskActionError: null
-    });
-    if (shouldHighlight) {
-      scheduleHighlightedTaskClear(set);
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'ADD_TASK',
+        payload: { title, select: shouldSelect }
+      });
+      if (!response?.ok || !response.taskId) throw new Error(response?.error || 'TASK_INVALID');
+      set({
+        ...getAuthoritativeFocusModePatch(response),
+        highlightedTaskId: shouldHighlight ? response.taskId : null,
+        taskActionError: null
+      });
+      if (shouldHighlight) scheduleHighlightedTaskClear(set);
+      return response.taskId;
+    } catch (error) {
+      const message = getActionError(error, 'TASK_INVALID');
+      set({
+        taskActionError: message.includes('DUPLICATE')
+          ? t(get().locale, 'taskDuplicateError')
+          : message
+      });
+      return null;
     }
-    await setLocal(
-      shouldSelect
-        ? { tasks: nextTasks, timerState: nextTimerState }
-        : { tasks: nextTasks }
-    );
-    return task.id;
   },
 
   updateTask: async (taskId, rawTitle) => {
@@ -736,12 +857,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
-    const nextTasks = sortTasks(
-      tasks.map((task) => (task.id === taskId ? { ...task, title } : task))
-    );
-
-    set({ tasks: nextTasks, taskActionError: null });
-    await setLocal({ tasks: nextTasks });
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'UPDATE_TASK',
+        payload: { taskId, title }
+      });
+      if (!response?.ok) throw new Error(response?.error || 'TASK_INVALID');
+      set({ ...getAuthoritativeFocusModePatch(response), taskActionError: null });
+    } catch (error) {
+      const message = getActionError(error, 'TASK_INVALID');
+      set({
+        taskActionError: message.includes('LOCKED')
+          ? t(locale, 'taskChangeRequiresStop')
+          : message.includes('DUPLICATE')
+            ? t(locale, 'taskDuplicateError')
+            : message
+      });
+    }
   },
 
   deleteTask: async (taskId) => {
@@ -754,26 +886,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
-    const nextTasks = sortTasks(tasks.filter((task) => task.id !== taskId));
-    const nextTimerState =
-      timerState.activeTaskId === taskId
-        ? {
-            ...timerState,
-            activeTaskId: null
-          }
-        : timerState;
-
-    const activeTaskRemoved = timerState.activeTaskId === taskId;
-    set({
-      tasks: nextTasks,
-      ...(activeTaskRemoved ? { timerState: nextTimerState } : {}),
-      taskActionError: null
-    });
-    await setLocal(
-      activeTaskRemoved
-        ? { tasks: nextTasks, timerState: nextTimerState }
-        : { tasks: nextTasks }
-    );
+    try {
+      const response = await sendRuntimeMessage({ type: 'DELETE_TASK', payload: { taskId } });
+      if (!response?.ok) throw new Error(response?.error || 'TASK_NOT_FOUND');
+      set({ ...getAuthoritativeFocusModePatch(response), taskActionError: null });
+    } catch (error) {
+      const message = getActionError(error, 'TASK_NOT_FOUND');
+      set({ taskActionError: message.includes('LOCKED') ? t(locale, 'taskChangeRequiresStop') : message });
+    }
   },
 
   archiveTask: async (taskId) => {
@@ -786,36 +906,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const target = tasks.find((task) => task.id === taskId);
     if (!target || target.system || taskId === NO_TASK_ID) return;
 
-    const nextTasks = sortTasks(
-      tasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              archived: true,
-              archivedAt: Date.now()
-            }
-          : task
-      )
-    );
-    const nextTimerState =
-      timerState.activeTaskId === taskId
-        ? {
-            ...timerState,
-            activeTaskId: null
-          }
-        : timerState;
-
-    const activeTaskArchived = timerState.activeTaskId === taskId;
-    set({
-      tasks: nextTasks,
-      ...(activeTaskArchived ? { timerState: nextTimerState } : {}),
-      taskActionError: null
-    });
-    await setLocal(
-      activeTaskArchived
-        ? { tasks: nextTasks, timerState: nextTimerState }
-        : { tasks: nextTasks }
-    );
+    try {
+      const response = await sendRuntimeMessage({ type: 'ARCHIVE_TASK', payload: { taskId } });
+      if (!response?.ok) throw new Error(response?.error || 'TASK_NOT_FOUND');
+      set({ ...getAuthoritativeFocusModePatch(response), taskActionError: null });
+    } catch (error) {
+      const message = getActionError(error, 'TASK_NOT_FOUND');
+      set({ taskActionError: message.includes('LOCKED') ? t(locale, 'taskChangeRequiresStop') : message });
+    }
   },
 
   restoreTask: async (taskId) => {
@@ -828,25 +926,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
-    const nextTasks = sortTasks(
-      tasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              archived: false,
-              archivedAt: null
-            }
-          : task
-      )
-    );
-
-    set({
-      tasks: nextTasks,
-      highlightedTaskId: taskId,
-      taskActionError: null
-    });
-    scheduleHighlightedTaskClear(set);
-    await setLocal({ tasks: nextTasks });
+    try {
+      const response = await sendRuntimeMessage({ type: 'RESTORE_TASK', payload: { taskId } });
+      if (!response?.ok) throw new Error(response?.error || 'TASK_NOT_FOUND');
+      set({
+        ...getAuthoritativeFocusModePatch(response),
+        highlightedTaskId: taskId,
+        taskActionError: null
+      });
+      scheduleHighlightedTaskClear(set);
+    } catch (error) {
+      const message = getActionError(error, 'TASK_NOT_FOUND');
+      set({
+        taskActionError: message.includes('RESTORE_DUPLICATE')
+          ? t(get().locale, 'taskRestoreDuplicateError')
+          : message
+      });
+    }
   },
 
   clearTaskActionError: () => set({ taskActionError: null }),
