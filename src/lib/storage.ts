@@ -23,6 +23,7 @@ import {
   PersistedStorage,
   Settings,
   SessionEvent,
+  STORAGE_KEYS,
   Statistics,
   StoredData,
   Task,
@@ -774,12 +775,82 @@ export const readStoredData = async (): Promise<StoredData> => {
   return migrateStoredData(stored).data;
 };
 
-export const initializeStorage = async (): Promise<StoredData> => {
-  const stored = await getLocal<Partial<PersistedStorage>>();
+export interface StorageInitializationAdapter {
+  read(): Promise<Partial<PersistedStorage>>;
+  write(value: Partial<PersistedStorage>): Promise<void>;
+}
+
+const storedDataKeys = [
+  STORAGE_KEYS.storageVersion,
+  STORAGE_KEYS.settings,
+  STORAGE_KEYS.tasks,
+  STORAGE_KEYS.timerState,
+  STORAGE_KEYS.statistics,
+  STORAGE_KEYS.focusModes,
+  STORAGE_KEYS.selectedFocusModeId,
+  STORAGE_KEYS.manualSettings,
+  STORAGE_KEYS.sessionEvents,
+  STORAGE_KEYS.theme
+] as const;
+
+const storageValuesEqual = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => storageValuesEqual(value, right[index]))
+    );
+  }
+  if (
+    left === null ||
+    right === null ||
+    typeof left !== 'object' ||
+    typeof right !== 'object'
+  ) {
+    return false;
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+        storageValuesEqual(leftRecord[key], rightRecord[key])
+    )
+  );
+};
+
+export const initializeStorageWithAdapter = async (
+  adapter: StorageInitializationAdapter
+): Promise<StoredData> => {
+  const stored = await adapter.read();
   const { data, backup } = migrateStoredData(stored);
-  await setLocal(backup ? { ...data, migrationBackup: backup } : data);
+  const patch: Partial<PersistedStorage> = backup
+    ? { ...data, migrationBackup: backup }
+    : storedDataKeys.reduce<Partial<PersistedStorage>>((result, key) => {
+        if (!storageValuesEqual(stored[key], data[key])) {
+          (result as Record<string, unknown>)[key] = data[key];
+        }
+        return result;
+      }, {});
+
+  if (Object.keys(patch).length > 0) {
+    await adapter.write(patch);
+  }
   return data;
 };
+
+export const initializeStorage = async (): Promise<StoredData> =>
+  initializeStorageWithAdapter({
+    read: () => getLocal<Partial<PersistedStorage>>(),
+    write: setLocal
+  });
 
 const getSafeImportedTimerState = (data: StoredData): TimerState => ({
   ...defaultTimerState(data.settings),

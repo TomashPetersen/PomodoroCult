@@ -21,7 +21,14 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - [x] 2026-07-12 19:49 +04:00: Extended storage v3 additively with normalized `selectedFocusModeId`, `manualSettings`, and `activeCycleSnapshot` without a version bump; existing v3 and v0/v1/v2 inputs remain idempotent.
 - [x] 2026-07-12 19:49 +04:00: Phase 2 migration/domain harness, both builds, Firefox runtime import/reopen behavior, and final package lint pass.
 - [x] 2026-07-12 20:27 +04:00: Added Phase 1 ready-Work semantic normalization and queued task-mutation regression coverage; final post-fix harness/runtime pass and QA-Agent `APPROVE`.
-- [x] 2026-07-12 20:27 +04:00: Added Phase 1 ready-Work semantic normalization and queued task-mutation regression coverage; final post-fix harness/runtime pass and QA-Agent `APPROVE`.
+- [x] 2026-07-12 20:51 +04:00: Fixed the post-`719fe3e` initialization integrity race by moving migration/repair into the authoritative background queue and making popup/app hydration read-only after readiness.
+- [x] 2026-07-12 21:04 +04:00: Implemented shared serialized queues, adapter-testable background initialization, one-time legacy backup writes, minimal current-v3 repair patches, and zero writes for an already-normalized reopen.
+- [x] 2026-07-12 21:04 +04:00: Deterministic completion/create/delete/bind/parallel-ensure/Firefox-startup/legacy interleavings pass, as do the existing migration/domain harness, TypeScript, both builds, and Firefox lint.
+- [x] 2026-07-12 21:04 +04:00: The initially pending independent QA and live extension runtime gates completed on 2026-07-13.
+- [x] 2026-07-12 21:09 +04:00: QA-Agent independently confirmed both harnesses, diff check, TypeScript, and builds with no code blocker.
+- [x] 2026-07-12 21:09 +04:00: The temporary runtime-launch blocker cleared; packaged Chromium/Firefox smoke later passed and QA returned `APPROVE`.
+- [x] 2026-07-13 00:07 +04:00: Packaged runtime verified zero-write normalized reopen, continuity, Focus Mode/task persistence, concurrent readiness, correct-mode exact-once aggregate/Event completion, and Firefox no-deadlock recovery.
+- [x] 2026-07-13 00:07 +04:00: QA-Agent independently repeated all storage/domain/static/package gates and approved closure of `SEC-P2-001`.
 
 ## Surprises & Discoveries
 
@@ -36,7 +43,8 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - A migrated paused cycle has no reliable original start. Resume preserves its null start so completion uses the documented duration fallback instead of inventing a resume-time timestamp.
 - Existing v3 active cycles also lacked a configuration snapshot. Initialization now materializes and persists one from the then-current settings before editable Focus Mode UI can change the next-cycle configuration.
 - A Phase 1 completed Break/Rest could leave ready Work marked `cycleStarted`. This is now recognized by its lack of running/paused state, target, and cycle id, then normalized to unlocked Work with no snapshot.
-- A Phase 1 completed Break/Rest could leave ready Work marked `cycleStarted`. This is now recognized by its lack of running/paused state, target, and cycle id, then normalized to unlocked Work with no snapshot.
+- UI-owned `initializeStorage()` is a full asynchronous read-normalize-write transaction, not a harmless read. When it runs outside the background queue, it can restore stale TimerState, statistics, SessionEvents, mode CRUD, selection, bindings, or manual settings over a newer queued mutation.
+- Firefox recovery cannot simply enqueue the existing expired-timer path because it recursively reaches `completeExpiredTimer()`, which enqueues again. Initialization must use a non-enqueueing internal implementation and defer completion effects until the queued mutation returns.
 
 ## Decision Log
 
@@ -54,10 +62,14 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - Chrome completion audio is conditional on a positive, cycle-matched background acknowledgement; stale completion requests remain silent.
 - Keep storage version 3 for the Phase 2 selection/manual/snapshot fields because they are additive, have safe missing-field defaults, and do not change the meaning of existing persisted records.
 - Imported timers always become safe idle with `activeCycleSnapshot: null`; selected/global mode, manual settings, custom modes, task bindings, and historical SessionEvents remain portable.
+- Background owns initialization and migrations on both platforms. `POPUP_ENSURE_READY`, startup, and install all serialize that internal operation with timer, mode, task, and statistics mutations; UI then uses `readStoredData()` only.
+- Do not raise storage version for this integrity fix. A real version migration writes the normalized document and creates one backup; current-v3 normalization writes only keys whose normalized values differ, and a normal reopen writes nothing.
 
 ## Outcomes & Retrospective
 
-Implemented schema metadata, migration backup, export/import helpers, and Settings UI controls. Storage v3 now provides canonical/custom Focus Modes, explicit global/manual selection state, task bindings, active-cycle snapshots, and exact-once timestamped Work events. Phase 2 keeps these workflows fully ungated. The first version keeps restore-from-backup manual/future-facing; automatic backup is stored for recovery but no UI is built for choosing a backup yet. Event retention remains intentionally uncapped until real storage growth is measured.
+Implemented schema metadata, migration backup, export/import helpers, and Settings UI controls. Storage v3 provides canonical/custom Focus Modes, explicit global/manual selection state, task bindings, active-cycle snapshots, and exact-once timestamped Work events. The post-`719fe3e` initialization race is an open integrity blocker until the serialized background-owned initialization change and independent QA pass are complete. Restore-from-backup remains manual/future-facing, and event retention remains intentionally uncapped until real storage growth is measured.
+
+The remediation prevents disposable UI contexts from writing initialization snapshots and proves the required queue interleavings deterministically and in packaged Chromium/Firefox runtimes. Legacy migration creates one backup, repeated initialization is idempotent, and an already-normalized reopen writes nothing. Independent QA approved the lifecycle-sensitive ownership change, so the storage integrity blocker is closed. Firefox native audio/notification event visibility in headless BiDi remains an observation limitation, not a storage correctness risk.
 
 ## Context and Orientation
 
@@ -177,4 +189,10 @@ No new npm dependencies. Import/export uses browser file APIs and JSON.
 
 2026-07-12 note: Final QA added explicit Phase 1 ready-Work recovery and serialized task-mutation coverage so deleted bindings cannot return through stale popup/app writes; post-fix harness and Firefox runtime pass with QA approval.
 
-2026-07-12 note: Final QA added explicit Phase 1 ready-Work recovery and serialized task-mutation coverage so deleted bindings cannot return through stale popup/app writes; post-fix harness and Firefox runtime pass with QA approval.
+2026-07-12 20:51 +04:00 note: Reopened storage integrity verification after `SEC-P2-001` was discovered in commit `719fe3e`; documented background-only migration ownership, shared-queue readiness/startup, read-only UI hydration, minimal current-v3 repair writes, and the Firefox deadlock-avoidance contract before code changes.
+
+2026-07-12 21:04 +04:00 note: Recorded the implemented adapter-backed initialization and shared production queue, zero-write normalized reopen, seven deterministic interleaving passes, successful builds/lint, and the remaining independent-QA/live-runtime gate.
+
+2026-07-12 21:09 +04:00 note: Recorded independent QA's no-code-blocker review and `CHANGES REQUIRED` runtime gate, plus the environment limit that denied the prepared Chrome/Firefox live harness. No storage closure or commit was claimed.
+
+2026-07-13 00:07 +04:00 note: Closed the initialization integrity blocker after packaged Chrome/Firefox lifecycle PASS, exact-once persistence evidence, all deterministic/static/build/lint gates, and independent QA-Agent `APPROVE`.

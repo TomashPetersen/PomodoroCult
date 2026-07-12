@@ -196,6 +196,7 @@ export type RuntimeMessage =
   | { type: 'OFFSCREEN_PAUSE_TIMER' }
   | { type: 'OFFSCREEN_STOP_TIMER' }
   | { type: 'OFFSCREEN_RESUME_TIMER' }
+  | { type: 'OFFSCREEN_PLAY_COMPLETION_CHIME' }
   | {
       type: 'TIMER_COMPLETED';
       payload: {

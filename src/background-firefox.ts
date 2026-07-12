@@ -7,6 +7,7 @@ import {
 import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
 import { applyTaskMutation, TaskMutationMessage } from './lib/taskMutations';
 import { getTimerModeLabel, resolveLocale, t } from './lib/i18n';
+import { createSerializedOperationQueue } from './lib/operationQueue';
 import {
   COMPLETION_CHIME_DURATION_MS,
   getLastCompletionChimeError,
@@ -45,9 +46,14 @@ const APP_WINDOW_HEIGHT = 760;
 const FOCUS_MUSIC_PLAY_TIMEOUT_MS = 2000;
 const FOCUS_MUSIC_RECONCILE_WAIT_MS = FOCUS_MUSIC_PLAY_TIMEOUT_MS + 250;
 
+interface FirefoxTimerCompletion {
+  completedMode: TimerMode;
+  completedState: TimerState;
+}
+
 let completionInFlight: Promise<void> | null = null;
 let lastCompletedKey: string | null = null;
-let timerOperationQueue: Promise<void> = Promise.resolve();
+const timerOperationQueue = createSerializedOperationQueue();
 let appWindowId: number | null = null;
 let appWindowOpenPromise: Promise<void> | null = null;
 
@@ -457,14 +463,7 @@ const requestFocusMusicReconcileBounded = async (stopImmediately = false): Promi
   }
 };
 
-const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
-  const result = timerOperationQueue.then(operation, operation);
-  timerOperationQueue = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
-};
+const enqueueTimerOperation = timerOperationQueue.enqueue;
 
 (
   globalThis as typeof globalThis & {
@@ -1239,6 +1238,54 @@ const handleTaskMutation = async (message: TaskMutationMessage) => {
   return { ...patch, ...(result.taskId ? { taskId: result.taskId } : {}) };
 };
 
+const completeExpiredTimerInQueue = async (): Promise<FirefoxTimerCompletion | null> => {
+  const { timerState } = await readStoredData();
+
+  if (!timerState.isRunning || !timerState.targetEndTime) {
+    await clearAlarm();
+    return null;
+  }
+
+  if (timerState.targetEndTime > Date.now()) {
+    await createAlarm(timerState.targetEndTime);
+    return null;
+  }
+
+  const completionKey = `${timerState.cycleId}:${timerState.currentMode}:${timerState.targetEndTime}`;
+  if (lastCompletedKey === completionKey) {
+    await clearAlarm();
+    return null;
+  }
+
+  await clearAlarm();
+  const completedMode = timerState.currentMode;
+  const completedState = await handleTimerCompleted({
+    ...timerState,
+    remainingSeconds: 0
+  });
+  lastCompletedKey = completionKey;
+  return { completedMode, completedState };
+};
+
+const runCompletionEffects = async (completion: FirefoxTimerCompletion): Promise<void> => {
+  try {
+    await playCompletionChime();
+  } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.message
+        : getLastCompletionChimeError() ?? String(error);
+    console.warn('Firefox completion audio failed:', reason);
+    await delay(COMPLETION_CHIME_DURATION_MS);
+  }
+
+  await delay(COMPLETION_NOTIFICATION_DELAY_MS);
+  await showCompletionNotification(
+    completion.completedMode,
+    completion.completedState.currentMode
+  );
+};
+
 const completeExpiredTimer = async (): Promise<void> => {
   if (completionInFlight) {
     await completionInFlight;
@@ -1246,54 +1293,8 @@ const completeExpiredTimer = async (): Promise<void> => {
   }
 
   completionInFlight = (async () => {
-    const completion = await enqueueTimerOperation(async () => {
-      const { timerState } = await readStoredData();
-
-      if (!timerState.isRunning || !timerState.targetEndTime) {
-        await clearAlarm();
-        return null;
-      }
-
-      if (timerState.targetEndTime > Date.now()) {
-        await createAlarm(timerState.targetEndTime);
-        return null;
-      }
-
-      const completionKey = `${timerState.cycleId}:${timerState.currentMode}:${timerState.targetEndTime}`;
-      if (lastCompletedKey === completionKey) {
-        await clearAlarm();
-        return null;
-      }
-
-      await clearAlarm();
-      const completedMode = timerState.currentMode;
-      const completedState = await handleTimerCompleted({
-        ...timerState,
-        remainingSeconds: 0
-      });
-      lastCompletedKey = completionKey;
-
-      return { completedMode, completedState };
-    });
-
-    if (!completion) return;
-
-    try {
-      await playCompletionChime();
-    } catch (error) {
-      const reason =
-        error instanceof Error
-          ? error.message
-          : getLastCompletionChimeError() ?? String(error);
-      console.warn('Firefox completion audio failed:', reason);
-      await delay(COMPLETION_CHIME_DURATION_MS);
-    }
-
-    await delay(COMPLETION_NOTIFICATION_DELAY_MS);
-    await showCompletionNotification(
-      completion.completedMode,
-      completion.completedState.currentMode
-    );
+    const completion = await enqueueTimerOperation(completeExpiredTimerInQueue);
+    if (completion) await runCompletionEffects(completion);
   })();
 
   try {
@@ -1303,7 +1304,7 @@ const completeExpiredTimer = async (): Promise<void> => {
   }
 };
 
-const resumeRunningTimer = async (): Promise<void> => {
+const initializeAndRecoverTimerInQueue = async (): Promise<FirefoxTimerCompletion | null> => {
   const { timerState: storedTimerState } = await initializeStorage();
   let timerState = storedTimerState;
 
@@ -1318,30 +1319,21 @@ const resumeRunningTimer = async (): Promise<void> => {
 
   if (!timerState.isRunning || !timerState.targetEndTime) {
     await clearAlarm();
-    return;
+    return null;
   }
 
   if (timerState.targetEndTime <= Date.now()) {
-    await completeExpiredTimer();
-    return;
+    return completeExpiredTimerInQueue();
   }
 
   await createAlarm(timerState.targetEndTime);
+  return null;
 };
 
-let backgroundRuntimeSyncInFlight: Promise<void> | null = null;
-
-const syncBackgroundRuntime = (): Promise<void> => {
-  if (!backgroundRuntimeSyncInFlight) {
-    backgroundRuntimeSyncInFlight = (async () => {
-      await resumeRunningTimer();
-      await requestFocusMusicReconcileBounded();
-    })().finally(() => {
-      backgroundRuntimeSyncInFlight = null;
-    });
-  }
-
-  return backgroundRuntimeSyncInFlight;
+const syncBackgroundRuntime = async (): Promise<void> => {
+  const completion = await enqueueTimerOperation(initializeAndRecoverTimerInQueue);
+  if (completion) await runCompletionEffects(completion);
+  await requestFocusMusicReconcileBounded();
 };
 
 chrome.runtime.onInstalled.addListener(() => {

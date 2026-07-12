@@ -19,11 +19,11 @@ import {
   getRunningDisplaySeconds,
   hasStartedTimerCycle,
   hasActiveTaskTitle,
-  initializeStorage,
   importStoredData,
   isTimerTaskLocked,
   normalizeSessionEvents,
   normalizeSettings,
+  readStoredData,
   removeTaskSessionEvents,
   removeTaskStatistics,
   setLocal,
@@ -287,7 +287,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   initialize: async () => {
     try {
-      const data = await initializeStorage();
+      const readinessLocale = get().locale;
+      const response = await sendRuntimeMessage({ type: 'POPUP_ENSURE_READY' });
+      if (!response?.ok) {
+        throw new Error(response?.error || t(readinessLocale, 'errorPrepareRuntime'));
+      }
+
+      const data = await readStoredData();
       const locale = resolveLocale(data.settings.languagePreference);
       applyThemeClass(data.theme);
 
@@ -376,20 +382,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         storageListenerAttached = true;
       }
 
-      try {
-        const response = await sendRuntimeMessage({ type: 'POPUP_ENSURE_READY' });
-        if (response && !response.ok) {
-          throw new Error(response.error || t(locale, 'errorPrepareRuntime'));
-        }
-      } catch (error) {
-        set({
-          runtimeError: getActionError(error, t(locale, 'errorInitRuntime'))
-        });
-      }
     } catch (error) {
       set((state) => ({
         hydrated: true,
-        runtimeError: getActionError(error, t(state.locale, 'errorLoadData'))
+        runtimeError: getActionError(error, t(state.locale, 'errorInitRuntime'))
       }));
     }
   },

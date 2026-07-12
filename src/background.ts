@@ -5,6 +5,7 @@ import {
 } from './lib/focusModes';
 import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
 import { applyTaskMutation, TaskMutationMessage } from './lib/taskMutations';
+import { createSerializedOperationQueue } from './lib/operationQueue';
 import {
   addSessionStatistics,
   createCycleId,
@@ -35,16 +36,8 @@ interface TimerCompletionResult {
 }
 
 let creatingOffscreenDocument: Promise<void> | null = null;
-let timerOperationQueue: Promise<void> = Promise.resolve();
-
-const enqueueTimerOperation = <T>(operation: () => Promise<T>): Promise<T> => {
-  const result = timerOperationQueue.then(operation, operation);
-  timerOperationQueue = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
-};
+const timerOperationQueue = createSerializedOperationQueue();
+const enqueueTimerOperation = timerOperationQueue.enqueue;
 
 const sendMessage = (message: RuntimeMessage): Promise<void> =>
   new Promise((resolve) => {
@@ -119,7 +112,7 @@ const stopOffscreenTimer = async (): Promise<void> => {
   }
 };
 
-const resumeRunningTimer = async (): Promise<void> => {
+const initializeAndRecoverTimer = async (): Promise<TimerCompletionResult> => {
   const { timerState: storedTimerState } = await initializeStorage();
 
   let timerState = storedTimerState;
@@ -132,10 +125,30 @@ const resumeRunningTimer = async (): Promise<void> => {
     await setLocal({ timerState });
   }
 
-  if (!timerState.isRunning) return;
+  if (!timerState.isRunning) return { timerState, completed: false };
+
+  if (timerState.targetEndTime && timerState.targetEndTime <= Date.now()) {
+    await stopOffscreenTimer();
+    return handleTimerCompleted({
+      mode: timerState.currentMode,
+      activeTaskId: timerState.activeTaskId,
+      durationSeconds: 0,
+      statSeconds: 0,
+      cycleId: timerState.cycleId ?? ''
+    });
+  }
 
   await createOffscreenDocument();
   await sendMessage({ type: 'OFFSCREEN_RESUME_TIMER' });
+  return { timerState, completed: false };
+};
+
+const ensureRuntimeReady = async (): Promise<void> => {
+  const result = await enqueueTimerOperation(initializeAndRecoverTimer);
+  if (!result.completed) return;
+
+  await createOffscreenDocument();
+  await sendMessage({ type: 'OFFSCREEN_PLAY_COMPLETION_CHIME' });
 };
 
 const buildRunningState = (
@@ -533,11 +546,11 @@ const handleTaskMutation = async (message: TaskMutationMessage) => {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  void enqueueTimerOperation(resumeRunningTimer);
+  void ensureRuntimeReady();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void enqueueTimerOperation(resumeRunningTimer);
+  void ensureRuntimeReady();
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
@@ -549,7 +562,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
 
     switch (message.type) {
       case 'POPUP_ENSURE_READY':
-        await enqueueTimerOperation(resumeRunningTimer);
+        await ensureRuntimeReady();
         sendResponse({ ok: true });
         return;
       case 'POPUP_START_TIMER':

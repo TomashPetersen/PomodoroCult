@@ -162,7 +162,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
     message.type !== 'OFFSCREEN_START_TIMER' &&
     message.type !== 'OFFSCREEN_PAUSE_TIMER' &&
     message.type !== 'OFFSCREEN_STOP_TIMER' &&
-    message.type !== 'OFFSCREEN_RESUME_TIMER'
+    message.type !== 'OFFSCREEN_RESUME_TIMER' &&
+    message.type !== 'OFFSCREEN_PLAY_COMPLETION_CHIME'
   ) {
     return false;
   }
@@ -183,6 +184,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         return;
       case 'OFFSCREEN_RESUME_TIMER':
         await resumeTimer();
+        sendResponse({ ok: true });
+        return;
+      case 'OFFSCREEN_PLAY_COMPLETION_CHIME':
+        await playCompletionChime();
         sendResponse({ ok: true });
         return;
     }

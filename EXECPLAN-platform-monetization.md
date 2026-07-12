@@ -26,6 +26,11 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - [x] 2026-07-12: Phase 1 passed migration/storage harnesses, Chrome and Firefox builds, automated Firefox runtime verification, and final QA-Agent review.
 - [x] 2026-07-12: Implemented Phase 2 as fully ungated Focus Modes: explicit global/manual selection, custom CRUD, task binding, cycle snapshots, serialized deletion, bilingual UI, and popup/app synchronization.
 - [x] 2026-07-12: Phase 2 passed the domain/migration harness, TypeScript, Chrome/Firefox builds, Firefox package lint, Firefox 152 runtime automation, visual popup/app checks, and final QA-Agent review.
+- [x] 2026-07-12 20:51 +04:00: Remediated post-commit finding `SEC-P2-001`, the unserialized UI initialization write found in `719fe3e`, through background-owned serialized initialization.
+- [x] 2026-07-12 21:04 +04:00: Implemented the scoped initialization integrity remediation without schema, permission, layout, Focus Music, Phase 3, payment, licensing, or feature-gate changes; deterministic and build/lint gates pass.
+- [x] 2026-07-12 21:04 +04:00: Independent QA and live extension runtime verification closed `SEC-P2-001` on 2026-07-13; Phase 3 remained unstarted throughout the fix.
+- [x] 2026-07-12 21:09 +04:00: The temporary runtime-launch blocker cleared, both packaged platforms passed, and QA-Agent returned `APPROVE`.
+- [x] 2026-07-13 00:07 +04:00: Storage initialization integrity is release-approved without schema, permission, layout, Focus Music, Phase 3, payment, licensing, or feature-gate changes.
 - [ ] Free/Supporter/Pro feature matrix approved.
 - [ ] Donation provider and public URL selected and manually verified from the developer's jurisdiction.
 - [ ] Android device/emulator smoke test completed.
@@ -49,6 +54,7 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Donation support is not only a UI issue. The developer is based in Russia, so payment availability, payout routes, platform restrictions, and supported AMO contribution domains can change. The extension must not depend on one provider until the provider is chosen and tested outside the codebase.
 - Timestamped analytics cannot be reconstructed honestly from legacy daily aggregates. Storage v3 therefore preserves old aggregates, starts the SessionEvent log without historical backfill, and records only new completed Work cycles.
 - Chrome offscreen must remain a scheduler rather than a competing TimerState writer. Background owns state transitions and acknowledges cycle-matched completion before offscreen plays the completion chime.
+- Serializing domain mutations is insufficient while popup/app hydration can still execute a full storage migration write outside that queue. Extension initialization is itself an authoritative storage operation and must use the same platform queue.
 
 ## Decision Log
 
@@ -64,10 +70,11 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Reports are a supporting utility, not the main reason to buy Pro. CSV and Markdown come after Focus Modes and Focus Review.
 - Do not introduce analytics by default. If monetization later needs licensing, store only the minimum required license state and document it.
 - Focus Modes UI is implemented without payment, entitlement, or feature-gate logic. Keep it ungated while product behavior is validated; do not define paid limits in this phase.
+- Treat background readiness as the storage ownership boundary on both Chrome and Firefox: startup/install/readiness queue initialization and recovery, while UI surfaces only read after a successful readiness response. This integrity fix does not change schema, permissions, layout, or monetization scope.
 
 ## Outcomes & Retrospective
 
-The roadmap now has three implemented foundations. Phase 0 stabilized the Firefox Free runtime and background focus music. Phase 1 added the platform-neutral storage v3 model and exact-once SessionEvents. Phase 2 added ungated Focus Mode selection, custom CRUD, task binding, and active-cycle isolation without permissions, payment code, entitlement state, or access limits. Focus Review is next; Android, donations, real Pro gates, and licensing remain unstarted.
+The roadmap has the Phase 0 and Phase 1 foundations plus the Phase 2 Focus Mode feature commit. The post-commit storage initialization integrity finding is closed after deterministic, packaged-runtime, and independent QA verification. Phase 2 still has a separate Focus Music functional blocker; therefore Focus Review has not started. Android, donations, real Pro gates, and licensing remain unstarted.
 
 ## Context and Orientation
 
@@ -368,3 +375,11 @@ Revision note 2026-07-11: Linked the platform roadmap to `EXECPLAN-v1.2.0.md`, w
 Revision note 2026-07-12: Recorded completed Phase 0 and Phase 1 commits, QA/build/runtime evidence, storage v3 and SessionEvent architecture, background-owned timer state, and Focus Modes UI as the next ungated phase.
 
 Revision note 2026-07-12: Recorded the implemented ungated Phase 2 Focus Modes workflows and their domain, build, Firefox runtime, lint, and visual evidence. Focus Review is now the next product phase; monetization and Android work remain deferred.
+
+Revision note 2026-07-12 20:51 +04:00: Suspended the premature Phase 2 completion claim after `SEC-P2-001` was found in `719fe3e`, and recorded the shared background queue/read-only UI hydration ownership boundary. No monetization, permission, layout, or Phase 3 work was started.
+
+Revision note 2026-07-12 21:04 +04:00: Recorded the implemented storage-only remediation and passing deterministic/static/build/lint gates while retaining the independent-QA/runtime blocker and leaving Focus Music, Phase 3, and monetization untouched.
+
+Revision note 2026-07-12 21:09 +04:00: Recorded QA-Agent `CHANGES REQUIRED` for missing live lifecycle evidence and the environment escalation-limit denial of the prepared browser run. Phase 3 and all monetization work remain unstarted.
+
+Revision note 2026-07-13 00:07 +04:00: Closed `SEC-P2-001` after packaged Chromium/Firefox runtime PASS and final QA approval. Kept the remaining Focus Music blocker, Phase 3, monetization, permissions, and platform roadmap outside this storage fix.
