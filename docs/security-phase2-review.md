@@ -20,9 +20,7 @@ Date: 2026-07-12
 
 ## Executive Summary
 
-No Critical code-execution, DOM injection, external-message, permission, or secret-exposure vulnerability was found. The original review identified one High-severity storage-integrity race in commit `719fe3e`; that finding is now remediated and independently approved. Phase 2 still has a separate Focus Music functional blocker outside this security fix.
-
-The previously reported active Focus Music control regression remains release-blocking functionality, but it is not classified as a Critical or High security vulnerability.
+No Critical code-execution, DOM injection, external-message, permission, or secret-exposure vulnerability was found. The original review identified one High-severity storage-integrity race in commit `719fe3e`; that finding is now remediated and independently approved. The separate Focus Music functional regression is also closed after packaged Firefox runtime, visual verification, and independent QA `APPROVE`.
 
 ## High Severity
 
@@ -90,7 +88,7 @@ Completed approval evidence:
 2. Deterministic regression coverage exercises completion, Focus Mode CRUD, binding, parallel readiness, Firefox startup, and legacy migration interleavings.
 3. Diff check, TypeScript, both builds, Firefox lint, packaged Chromium/Firefox runtime, and independent QA pass.
 
-The direct Focus Music control regression remains a separate functional release blocker and was intentionally not changed by this storage fix.
+The storage fix intentionally did not change Focus Music. The later isolated Focus Music remediation closed that separate functional blocker without reopening `SEC-P2-001`.
 
 ## Outcomes & Retrospective
 
@@ -115,3 +113,5 @@ Revision note 2026-07-13 21:14 +04:00: Recorded the atomic-intent correction aft
 Revision note 2026-07-13 22:28 +04:00: Recorded successful packaged Firefox live-audio/exact-once/chime evidence and six inspected screenshots using external background-realm instrumentation. Kept the functional residual pending independent QA and retained honest native-notification/lint limits without reopening `SEC-P2-001`.
 
 Revision note 2026-07-13 22:35 +04:00: Recorded final independent QA-Agent `APPROVE`, closed the separate Focus Music functional residual, and retained native headless-notification observation plus unavailable optional lint as non-blocking limitations. Closed storage finding `SEC-P2-001` remains unaffected.
+
+Revision note 2026-07-13: Removed stale release-blocker wording after final packaged Firefox and QA approval so the executive summary and approval gate match the verified Phase 2 outcome.
