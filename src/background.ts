@@ -600,7 +600,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
       case 'UPDATE_FOCUS_MODE':
       case 'DELETE_FOCUS_MODE':
       case 'SET_TASK_FOCUS_MODE':
-      case 'SAVE_MANUAL_SETTINGS': {
+      case 'SAVE_MANUAL_SETTINGS':
+      case 'SAVE_FOCUS_MUSIC_SETTINGS': {
         const result = await enqueueTimerOperation(() => handleFocusModeMutation(message));
         sendResponse({ ok: true, ...result });
         return;

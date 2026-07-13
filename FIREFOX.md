@@ -59,6 +59,8 @@ The compact popup and app window control one optional background-owned focus-mus
 
 The loops are bundled under `public/sounds/`, disabled by default, and never loaded from a remote URL. Playback is owned by `src/background-firefox.ts`, so closing the compact popup does not stop the selected loop and opening both UI surfaces does not create duplicate audio.
 
+Direct Off/On, track, and volume controls use a typed serialized background mutation. During a running or paused Work cycle, that mutation changes only the cycle snapshot's audio fields and the saved manual audio baseline. Focus Mode records, timer durations, auto-start, mode/cycle identity, task bindings, statistics, and SessionEvents remain unchanged. Popup, app window, and Firefox background resolve the same active-Work audio state, including task-bound modes. Immediate stop paths invalidate the audio generation, clear Stream timers, and reset owned Audio elements before an old asynchronous play can resume.
+
 ## Storage v3 foundation
 
 Phase 1 added platform-neutral product data without changing the current UI or permissions:
@@ -84,6 +86,10 @@ Phase 2 adds free local Focus Mode workflows without feature gates or monetizati
 - deletion clears global/task references but preserves historical SessionEvents and an active snapshot.
 
 The Firefox background page serializes mode and task mutations with timer completion. Running Work focus music reads the cycle snapshot rather than live mode/settings records. No new permission, remote audio, dependency, donation, entitlement, license, feature gate, or version change is part of Phase 2.
+
+The live-control remediation keeps that snapshot isolation narrow: editing, deleting, selecting, or rebinding a Focus Mode still cannot change any field of a running/paused snapshot. Only an explicit Focus Music control command can replace `soundTrack` and `soundVolume` for the active Work cycle.
+
+Phase 2 verification exercised the packaged Firefox background player with Stream/Birds/Clock, immediate Off/On, rapid volume and toggle changes, pending-play invalidation, Pause/Resume, popup/app reopen, and natural completion. One chime plus exact-once statistics and SessionEvent were observed. Six popup/app screenshots cover English/Russian and light/dark at compact, normal, and maximized sizes. Native notification delivery is not directly observable in the current headless Firefox harness; notification code is unchanged by the live-control fix.
 
 ## Firefox-specific files
 

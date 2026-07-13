@@ -22,6 +22,8 @@ Focus music notes:
 - focus audio sources and licenses are documented in `docs/assets.md`
 - music plays only during a running work timer when enabled by the user
 - one background-page player owns focus music so popup close/reopen and the separate app window do not create duplicate playback
+- direct Off/On, track, and volume changes are sent to the authoritative background page and apply to the current running/paused Work cycle without changing timer durations or saved Focus Mode records
+- the active cycle stores only the live track/none and volume override; popup and app window read that same state, while Focus Mode edits remain next-cycle-only
 - no remote audio is loaded
 
 Required permission:

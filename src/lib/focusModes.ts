@@ -8,7 +8,8 @@ import {
   Settings,
   StoredData,
   Task,
-  TimerMode
+  TimerMode,
+  TimerState
 } from './types';
 
 export const BUILT_IN_FOCUS_MODES: readonly FocusMode[] = [
@@ -413,6 +414,16 @@ export const materializeSnapshotSettings = (
   focusMusicVolume: snapshot.soundVolume
 });
 
+export const resolveActiveWorkFocusMusicSettings = (
+  settings: Settings,
+  timerState: TimerState
+): Settings =>
+  timerState.currentMode === 'work' &&
+  timerState.cycleStarted &&
+  timerState.activeCycleSnapshot
+    ? materializeSnapshotSettings(timerState.activeCycleSnapshot, settings)
+    : settings;
+
 export const resolveNextWorkSnapshot = (input: {
   focusModes: FocusMode[];
   tasks: Task[];
@@ -494,6 +505,44 @@ export const applyManualSettings = (
   }
 
   return { settings, manualSettings: settings, selectedFocusModeId: null };
+};
+
+export const applyLiveFocusMusicSettings = (
+  data: StoredData,
+  settings: Settings
+): Pick<StoredData, 'settings' | 'manualSettings' | 'selectedFocusModeId'> &
+  Partial<Pick<StoredData, 'timerState'>> => {
+  const manualSettings: Settings = {
+    ...data.manualSettings,
+    focusMusicEnabled: settings.focusMusicEnabled,
+    focusMusicTrack: settings.focusMusicTrack,
+    focusMusicVolume: settings.focusMusicVolume
+  };
+  const manualPatch = {
+    settings: manualSettings,
+    manualSettings,
+    selectedFocusModeId: null
+  };
+  const activeSnapshot = data.timerState.activeCycleSnapshot;
+  const hasActiveWorkCycle =
+    data.timerState.currentMode === 'work' &&
+    data.timerState.cycleStarted &&
+    (data.timerState.isRunning || data.timerState.isPaused) &&
+    activeSnapshot !== null;
+
+  if (!hasActiveWorkCycle) return manualPatch;
+
+  return {
+    ...manualPatch,
+    timerState: {
+      ...data.timerState,
+      activeCycleSnapshot: {
+        ...activeSnapshot,
+        soundTrack: settings.focusMusicEnabled ? settings.focusMusicTrack : 'none',
+        soundVolume: settings.focusMusicVolume
+      }
+    }
+  };
 };
 
 export const deleteCustomFocusMode = (

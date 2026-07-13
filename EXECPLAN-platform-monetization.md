@@ -31,6 +31,12 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - [x] 2026-07-12 21:04 +04:00: Independent QA and live extension runtime verification closed `SEC-P2-001` on 2026-07-13; Phase 3 remained unstarted throughout the fix.
 - [x] 2026-07-12 21:09 +04:00: The temporary runtime-launch blocker cleared, both packaged platforms passed, and QA-Agent returned `APPROVE`.
 - [x] 2026-07-13 00:07 +04:00: Storage initialization integrity is release-approved without schema, permission, layout, Focus Music, Phase 3, payment, licensing, or feature-gate changes.
+- [x] 2026-07-13 20:37 +04:00: Implemented the remaining Phase 2 live Focus Music control fix with a typed background mutation and audio-only active Work snapshot replacement; deterministic domain/concurrency/audio checks, TypeScript, and both builds pass.
+- [x] 2026-07-13 21:14 +04:00: Replaced stale full-state UI audio payloads with queued atomic commands (`toggle`, `set-enabled`, `set-track`, `set-volume`) that merge against authoritative storage; all three deterministic harnesses, diff check, TypeScript, and both builds pass after the correction.
+- [x] 2026-07-13 21:14 +04:00: The earlier QA-Agent `CHANGES REQUIRED` verdict was superseded after real packaged Firefox audio and screenshot evidence became available.
+- [x] 2026-07-13 22:28 +04:00: Packaged Firefox live-audio smoke and six-screenshot popup/app visual coverage now pass after isolating QA profile/process-tree issues; exact-once completion and one chime were directly observed.
+- [x] 2026-07-13 22:35 +04:00: QA-Agent independently repeated the diff/harness/static/build review, audited production runtime hashes and all six screenshots, and returned `APPROVE`. Headless native notification observation and optional Firefox lint remain documented non-blocking limitations rather than claimed PASS.
+- [x] 2026-07-13 22:35 +04:00: Packaged Firefox audio/runtime, visual comparison, and independent QA close the Focus Music blocker; Phase 3 remains unstarted pending this isolated commit.
 - [ ] Free/Supporter/Pro feature matrix approved.
 - [ ] Donation provider and public URL selected and manually verified from the developer's jurisdiction.
 - [ ] Android device/emulator smoke test completed.
@@ -55,6 +61,11 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Timestamped analytics cannot be reconstructed honestly from legacy daily aggregates. Storage v3 therefore preserves old aggregates, starts the SessionEvent log without historical backfill, and records only new completed Work cycles.
 - Chrome offscreen must remain a scheduler rather than a competing TimerState writer. Background owns state transitions and acknowledges cycle-matched completion before offscreen plays the completion chime.
 - Serializing domain mutations is insufficient while popup/app hydration can still execute a full storage migration write outside that queue. Extension initialization is itself an authoritative storage operation and must use the same platform queue.
+- Cycle snapshot isolation needs a narrow exception for explicit live audio commands. Keeping the saved Focus Mode immutable while replacing only the active snapshot's track/none and volume preserves timer/session identity and restores immediate user control.
+- Task-bound audio cannot be displayed from top-level compatibility settings because that object intentionally never materializes a task override. Popup, app, and Firefox background now share active-Work audio resolution without changing layout or storage schema.
+- A UI-computed full audio payload is unsafe even when background mutations are queued: two rapid controls can both be derived from the same stale render. Atomic intent messages let the background merge each action with the latest authoritative active-Work audio state.
+- The deterministic Focus Music harness executes the production domain mutation and resolver, but its playback-generation model does not execute Firefox's real `HTMLAudioElement` reconciler. It is strong interleaving evidence, not a substitute for packaged Firefox audio smoke.
+- Temporary Firefox instrumentation must execute in the background realm: functions created from a popup become dead cross-compartment wrappers when that popup closes. The successful QA run prepended a local script only to an external package copy and left the production bundle untouched.
 
 ## Decision Log
 
@@ -71,10 +82,13 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Do not introduce analytics by default. If monetization later needs licensing, store only the minimum required license state and document it.
 - Focus Modes UI is implemented without payment, entitlement, or feature-gate logic. Keep it ungated while product behavior is validated; do not define paid limits in this phase.
 - Treat background readiness as the storage ownership boundary on both Chrome and Firefox: startup/install/readiness queue initialization and recovery, while UI surfaces only read after a successful readiness response. This integrity fix does not change schema, permissions, layout, or monetization scope.
+- Route direct Focus Music controls through one typed serialized background mutation. Preserve manual durations, write only manual audio values, and replace only active Work snapshot audio fields; Focus Mode CRUD, task binding, and global selection remain next-cycle-only for the complete snapshot.
+- Express each direct audio interaction as one atomic intent and resolve it inside the authoritative background queue. Popup and app-window surfaces must not reconstruct the next audio state from a possibly stale Zustand render.
+- Keep Audio/runtime instrumentation and screenshots outside the repository and release package; use them only to validate the background-owned player and layout invariants.
 
 ## Outcomes & Retrospective
 
-The roadmap has the Phase 0 and Phase 1 foundations plus the Phase 2 Focus Mode feature commit. The post-commit storage initialization integrity finding is closed after deterministic, packaged-runtime, and independent QA verification. Phase 2 still has a separate Focus Music functional blocker; therefore Focus Review has not started. Android, donations, real Pro gates, and licensing remain unstarted.
+The roadmap has the Phase 0 and Phase 1 foundations plus the Phase 2 Focus Mode feature commit. The post-commit storage initialization integrity finding is closed. The Focus Music remediation has deterministic/static/build, packaged Firefox audio, exact-once completion, chime, visual, and independent QA `APPROVE` evidence, so Phase 2 is complete once the isolated fix commit is created. Optional lint and direct native-notification observability remain non-blocking limits. Focus Review, Android, donations, real Pro gates, and licensing remain unstarted.
 
 ## Context and Orientation
 
@@ -383,3 +397,11 @@ Revision note 2026-07-12 21:04 +04:00: Recorded the implemented storage-only rem
 Revision note 2026-07-12 21:09 +04:00: Recorded QA-Agent `CHANGES REQUIRED` for missing live lifecycle evidence and the environment escalation-limit denial of the prepared browser run. Phase 3 and all monetization work remain unstarted.
 
 Revision note 2026-07-13 00:07 +04:00: Closed `SEC-P2-001` after packaged Chromium/Firefox runtime PASS and final QA approval. Kept the remaining Focus Music blocker, Phase 3, monetization, permissions, and platform roadmap outside this storage fix.
+
+Revision note 2026-07-13 20:37 +04:00: Recorded the scoped live Focus Music remediation, audio-only snapshot exception, shared UI/runtime resolution, and passing deterministic/static/build gates while retaining packaged runtime, visual, optional lint, and independent-QA blockers. Phase 3 and monetization remain unstarted.
+
+Revision note 2026-07-13 21:14 +04:00: Recorded the QA-discovered stale full-payload risk and its atomic-intent correction, repeated deterministic/static/build PASS, optional lint unavailability, three Firefox pre-BiDi exits with `0x593E4001`, and final QA `CHANGES REQUIRED`. Kept Phase 2, the Focus Music commit, Phase 3, and monetization blocked pending real packaged runtime and visual evidence.
+
+Revision note 2026-07-13 22:28 +04:00: Recorded packaged Firefox live-audio/exact-once/chime PASS and six inspected screenshots after fixing external QA profile/process-tree ownership. Kept Phase 2 and the commit pending final independent QA, with native notification observation and optional lint documented honestly.
+
+Revision note 2026-07-13 22:35 +04:00: Recorded final independent QA-Agent `APPROVE`, closed the Phase 2 Focus Music blocker, superseded stale pending entries, and retained native headless-notification observation plus unavailable optional lint as non-blocking residuals. Phase 3 and monetization remain unstarted.

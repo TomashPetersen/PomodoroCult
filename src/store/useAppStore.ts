@@ -3,6 +3,7 @@ import { NO_TASK_ID } from '../lib/constants';
 import {
   getSnapshotDurationSeconds,
   normalizeFocusModes,
+  resolveActiveWorkFocusMusicSettings,
   resolveNextWorkSnapshot
 } from '../lib/focusModes';
 import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
@@ -33,8 +34,8 @@ import {
   AppScreen,
   CURRENT_STORAGE_VERSION,
   DEFAULT_SETTINGS,
+  FocusMusicControlCommand,
   Locale,
-  FocusMusicTrack,
   FocusMode,
   FocusModeEditableValues,
   RuntimeMessage,
@@ -100,11 +101,7 @@ interface AppStore extends StoredData {
   openSettings: () => void;
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
-  saveFocusMusicSettings: (settings: {
-    enabled?: boolean;
-    volume?: number;
-    track?: FocusMusicTrack;
-  }) => Promise<void>;
+  saveFocusMusicSettings: (command: FocusMusicControlCommand) => Promise<void>;
   selectFocusMode: (focusModeId: string | null) => Promise<void>;
   createFocusMode: (values: FocusModeEditableValues) => Promise<string | null>;
   updateFocusMode: (focusModeId: string, values: FocusModeEditableValues) => Promise<void>;
@@ -451,17 +448,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
 
-  saveFocusMusicSettings: async ({ enabled, volume, track }) => {
-    const settings = normalizeSettings({
-      ...get().settings,
-      focusMusicEnabled: enabled ?? get().settings.focusMusicEnabled,
-      focusMusicVolume: volume ?? get().settings.focusMusicVolume,
-      focusMusicTrack: track ?? get().settings.focusMusicTrack
-    });
-
+  saveFocusMusicSettings: async (command) => {
     const response = await sendRuntimeMessage({
-      type: 'SAVE_MANUAL_SETTINGS',
-      payload: { settings }
+      type: 'SAVE_FOCUS_MUSIC_SETTINGS',
+      payload: command
     });
     if (!response?.ok) {
       set({ focusModeError: response?.error || 'Unable to save focus music settings.' });

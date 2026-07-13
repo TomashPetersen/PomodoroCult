@@ -24,6 +24,12 @@ export interface Settings {
   focusMusicTrack: FocusMusicTrack;
 }
 
+export type FocusMusicControlCommand =
+  | { type: 'toggle' }
+  | { type: 'set-enabled'; enabled: boolean }
+  | { type: 'set-track'; track: FocusMusicTrack }
+  | { type: 'set-volume'; volume: number };
+
 export interface Task {
   id: string;
   title: string;
@@ -178,6 +184,7 @@ export type RuntimeMessage =
       payload: { taskId: string; focusModeId: string | null };
     }
   | { type: 'SAVE_MANUAL_SETTINGS'; payload: { settings: Settings } }
+  | { type: 'SAVE_FOCUS_MUSIC_SETTINGS'; payload: FocusMusicControlCommand }
   | { type: 'SELECT_TASK'; payload: { taskId: string | null } }
   | { type: 'ADD_TASK'; payload: { title: string; select: boolean } }
   | { type: 'UPDATE_TASK'; payload: { taskId: string; title: string } }

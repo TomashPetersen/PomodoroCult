@@ -1,7 +1,7 @@
 import { FOCUS_MUSIC_TRACKS, NO_TASK_ID } from './lib/constants';
 import {
   getSnapshotDurationSeconds,
-  materializeSnapshotSettings,
+  resolveActiveWorkFocusMusicSettings,
   resolveNextWorkSnapshot
 } from './lib/focusModes';
 import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
@@ -92,6 +92,13 @@ const pauseFocusMusic = (): void => {
   });
 };
 
+const stopAndResetFocusMusic = (): void => {
+  pauseFocusMusic();
+  focusMusicAudios.forEach((audio) => {
+    audio.currentTime = 0;
+  });
+};
+
 const disposeFocusMusicAudios = (): void => {
   pauseFocusMusic();
   focusMusicAudios.forEach((audio) => {
@@ -153,7 +160,7 @@ const invalidateFocusMusicPlayback = (stopImmediately: boolean): number => {
   clearFocusMusicTimers();
 
   if (stopImmediately) {
-    pauseFocusMusic();
+    stopAndResetFocusMusic();
   } else {
     normalizeFocusMusicOverlap();
   }
@@ -413,9 +420,7 @@ const runFocusMusicReconcileWorker = async (): Promise<void> => {
         continue;
       }
 
-      const focusSettings = timerState.activeCycleSnapshot
-        ? materializeSnapshotSettings(timerState.activeCycleSnapshot, settings)
-        : settings;
+      const focusSettings = resolveActiveWorkFocusMusicSettings(settings, timerState);
       await syncFocusMusic(focusSettings, timerState, generation);
     } catch (error) {
       console.warn('Firefox focus music reconciliation failed:', error);
@@ -1446,8 +1451,12 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
       case 'UPDATE_FOCUS_MODE':
       case 'DELETE_FOCUS_MODE':
       case 'SET_TASK_FOCUS_MODE':
-      case 'SAVE_MANUAL_SETTINGS': {
+      case 'SAVE_MANUAL_SETTINGS':
+      case 'SAVE_FOCUS_MUSIC_SETTINGS': {
         const result = await enqueueTimerOperation(() => handleFocusModeMutation(message));
+        if (message.type === 'SAVE_FOCUS_MUSIC_SETTINGS') {
+          await requestFocusMusicReconcileBounded(result.settings?.focusMusicEnabled === false);
+        }
         sendResponse({ ok: true, ...result });
         return;
       }
