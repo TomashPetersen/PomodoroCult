@@ -329,7 +329,7 @@ export const FocusReviewScreen = ({
   };
 
   return (
-    <main className="flex h-full w-full flex-col overflow-hidden p-4">
+    <main className="flex h-full w-full flex-col overflow-hidden p-4 text-zinc-900 dark:text-zinc-100">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <ActionIconButton

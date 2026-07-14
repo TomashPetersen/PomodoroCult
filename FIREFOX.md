@@ -88,6 +88,8 @@ Phase 3 raises local storage to version 4 and remains free for every user:
 
 JSON import/export includes goals, coverage, and available event metadata. Import remains queued, creates a safe-idle timer, and does not start Focus Music. No permission, dependency, donation, entitlement, licensing, manifest version, or application version change is part of Phase 3.
 
+Phase 3 packaged verification used Firefox 152.0.6 with a temporary isolated profile. Core runtime checks passed v3-to-v4 recovery, app-window de-duplication, goals, natural exact-once completion, Pause/Resume, statistics/event deletion, JSON safe-idle import, popup reopen, and secure click-driven reports. A separate visual/accessibility pass inspected empty, sparse, and populated Review states plus the popup across English/Russian, light/dark, 400x600, 1040x760, and 1440x900 surfaces; keyboard formula help, reduced motion, long titles, overflow, and extension-console checks passed. The split avoids a headless Firefox focus artifact after automated downloads and does not change the packaged files under test.
+
 ## Ungated Focus Modes
 
 Phase 2 adds free local Focus Mode workflows without feature gates or monetization:
