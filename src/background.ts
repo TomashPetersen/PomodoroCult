@@ -1,19 +1,31 @@
 import { NO_TASK_ID } from './lib/constants';
 import {
+  APP_WINDOW_SESSION_KEY,
+  getNextAppWindowState,
+  normalizeAppWindowId
+} from './lib/appWindow';
+import {
   getSnapshotDurationSeconds,
   resolveNextWorkSnapshot
 } from './lib/focusModes';
 import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
 import { applyTaskMutation, TaskMutationMessage } from './lib/taskMutations';
+import {
+  isFocusReviewGoalsPayload,
+  normalizeFocusReviewGoals
+} from './lib/focusReviewGoals';
 import { createSerializedOperationQueue } from './lib/operationQueue';
 import {
   addSessionStatistics,
   createCycleId,
   createSessionEvent,
   ensureNoTask,
+  getLocalDateKey,
+  getLocalStartMinute,
   getNextTimerRevision,
   getRunningDisplaySeconds,
   initializeStorage,
+  importStoredData,
   readStoredData,
   removeTaskSessionEvents,
   removeTaskStatistics,
@@ -29,6 +41,9 @@ import {
 } from './lib/types';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
+const APP_WINDOW_URL = 'app.html';
+const APP_WINDOW_WIDTH = 1040;
+const APP_WINDOW_HEIGHT = 760;
 
 interface TimerCompletionResult {
   timerState: TimerState;
@@ -36,6 +51,8 @@ interface TimerCompletionResult {
 }
 
 let creatingOffscreenDocument: Promise<void> | null = null;
+let appWindowId: number | null = null;
+let openingAppWindow: Promise<void> | null = null;
 const timerOperationQueue = createSerializedOperationQueue();
 const enqueueTimerOperation = timerOperationQueue.enqueue;
 
@@ -46,6 +63,188 @@ const sendMessage = (message: RuntimeMessage): Promise<void> =>
       resolve();
     });
   });
+
+const buildAppWindowUrl = (options?: { screen?: string; statsView?: string }): string => {
+  const url = new URL(chrome.runtime.getURL(APP_WINDOW_URL));
+  if (options?.screen) url.searchParams.set('screen', options.screen);
+  if (options?.statsView) url.searchParams.set('statsView', options.statsView);
+  return url.toString();
+};
+
+const readRememberedAppWindowId = (): Promise<number | null> =>
+  new Promise((resolve) => {
+    chrome.storage.session.get([APP_WINDOW_SESSION_KEY], (stored) => {
+      const error = chrome.runtime.lastError;
+      resolve(error ? null : normalizeAppWindowId(stored[APP_WINDOW_SESSION_KEY]));
+    });
+  });
+
+const rememberAppWindowId = (windowId: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    appWindowId = windowId;
+    chrome.storage.session.set({ [APP_WINDOW_SESSION_KEY]: windowId }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+
+const forgetAppWindowId = async (removedWindowId?: number): Promise<void> => {
+  const rememberedWindowId = appWindowId ?? await readRememberedAppWindowId();
+  if (removedWindowId !== undefined && rememberedWindowId !== removedWindowId) return;
+  appWindowId = null;
+  await new Promise<void>((resolve) => {
+    chrome.storage.session.remove(APP_WINDOW_SESSION_KEY, () => {
+      void chrome.runtime.lastError;
+      resolve();
+    });
+  });
+};
+
+const findExistingAppWindowId = async (): Promise<number | null> => {
+  const appUrl = chrome.runtime.getURL(APP_WINDOW_URL);
+  if (chrome.runtime.getContexts) {
+    const contexts = await new Promise<chrome.runtime.ExtensionContext[]>((resolve) => {
+      chrome.runtime.getContexts(
+        { contextTypes: [chrome.runtime.ContextType.TAB] },
+        (items) => {
+          void chrome.runtime.lastError;
+          resolve(items ?? []);
+        }
+      );
+    });
+    const context = contexts.find(
+      (item) => item.windowId >= 0 && item.documentUrl?.startsWith(appUrl)
+    );
+    if (context) {
+      await rememberAppWindowId(context.windowId);
+      return context.windowId;
+    }
+  }
+  return null;
+};
+
+const focusAppWindow = (windowId: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    chrome.windows.update(windowId, { focused: true }, (window) => {
+      const error = chrome.runtime.lastError;
+      resolve(!error && typeof window?.id === 'number');
+    });
+  });
+
+const getKnownAppWindowId = async (): Promise<number | null> => {
+  const candidate = appWindowId ?? await readRememberedAppWindowId();
+  if (candidate === null) return null;
+
+  return new Promise((resolve) => {
+    chrome.windows.get(candidate, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        forgetAppWindowId(candidate).then(() => resolve(null));
+        return;
+      }
+      appWindowId = candidate;
+      resolve(candidate);
+    });
+  });
+};
+
+const toggleAppWindowMaximized = async (): Promise<boolean> => {
+  const targetWindowId = (await getKnownAppWindowId()) ?? (await findExistingAppWindowId());
+  if (targetWindowId === null) return false;
+  appWindowId = targetWindowId;
+
+  return new Promise<boolean>((resolve, reject) => {
+    chrome.windows.get(targetWindowId, (currentWindow) => {
+      const getError = chrome.runtime.lastError;
+      if (getError) {
+        reject(new Error(getError.message));
+        return;
+      }
+
+      const nextState = getNextAppWindowState(currentWindow.state);
+      chrome.windows.update(targetWindowId, { state: nextState, focused: true }, () => {
+        const updateError = chrome.runtime.lastError;
+        if (updateError) {
+          reject(new Error(updateError.message));
+          return;
+        }
+        resolve(nextState === 'fullscreen');
+      });
+    });
+  });
+};
+
+const notifyAppWindowNavigation = async (
+  options?: { screen?: string; statsView?: string }
+): Promise<void> => {
+  if (!options?.screen && !options?.statsView) return;
+  await sendMessage({
+    type: 'APP_WINDOW_NAVIGATE',
+    payload: {
+      ...(options.screen === 'timer' || options.screen === 'tasks' || options.screen === 'stats'
+        ? { screen: options.screen }
+        : {}),
+      ...(options.statsView === 'list' || options.statsView === 'chart' || options.statsView === 'review'
+        ? { statsView: options.statsView }
+        : {})
+    }
+  });
+};
+
+const createAppWindow = (options?: { screen?: string; statsView?: string }): Promise<void> =>
+  new Promise((resolve, reject) => {
+    chrome.windows.create(
+      {
+        url: buildAppWindowUrl(options),
+        type: 'popup',
+        width: APP_WINDOW_WIDTH,
+        height: APP_WINDOW_HEIGHT,
+        focused: true
+      },
+      (window) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+        const createdWindowId = normalizeAppWindowId(window?.id);
+        if (createdWindowId === null) {
+          reject(new Error('Chrome did not return the created app window id.'));
+          return;
+        }
+        rememberAppWindowId(createdWindowId).then(resolve, reject);
+      }
+    );
+  });
+
+const openAppWindow = async (
+  options?: { screen?: string; statsView?: string }
+): Promise<void> => {
+  if (openingAppWindow) {
+    await openingAppWindow;
+    if (appWindowId !== null) {
+      await focusAppWindow(appWindowId);
+      await notifyAppWindowNavigation(options);
+    }
+    return;
+  }
+
+  openingAppWindow = (async () => {
+    const existingId = (await getKnownAppWindowId()) ?? await findExistingAppWindowId();
+    if (existingId !== null && await focusAppWindow(existingId)) {
+      await rememberAppWindowId(existingId);
+      await notifyAppWindowNavigation(options);
+      return;
+    }
+    appWindowId = null;
+    await createAppWindow(options);
+  })().finally(() => {
+    openingAppWindow = null;
+  });
+
+  await openingAppWindow;
+};
 
 const hasOffscreenDocument = async (): Promise<boolean> => {
   if (chrome.offscreen?.hasDocument) {
@@ -159,6 +358,8 @@ const buildRunningState = (
   activeTaskId: string | null,
   cycleId: string,
   cycleStartedAt: number | null,
+  cycleStartedLocalDate: string | null,
+  cycleLocalStartMinute: number | null,
   activeCycleSnapshot: FocusModeSnapshot
 ): TimerState => ({
   ...timerState,
@@ -171,6 +372,8 @@ const buildRunningState = (
   targetEndTime,
   cycleId,
   cycleStartedAt,
+  cycleStartedLocalDate,
+  cycleLocalStartMinute,
   activeCycleSnapshot,
   activeTaskId
 });
@@ -237,6 +440,13 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
   const targetEndTime = startedAt + durationSeconds * 1000;
   const cycleId = isResume && timerState.cycleId ? timerState.cycleId : createCycleId();
   const cycleStartedAt = isResume ? timerState.cycleStartedAt : startedAt;
+  const cycleStartDate = new Date(startedAt);
+  const cycleStartedLocalDate = isResume
+    ? timerState.cycleStartedLocalDate
+    : getLocalDateKey(cycleStartDate);
+  const cycleLocalStartMinute = isResume
+    ? timerState.cycleLocalStartMinute
+    : getLocalStartMinute(cycleStartDate);
   const nextState = buildRunningState(
     timerState,
     mode,
@@ -245,6 +455,8 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     activeTaskId ?? null,
     cycleId,
     cycleStartedAt,
+    cycleStartedLocalDate,
+    cycleLocalStartMinute,
     activeCycleSnapshot
   );
 
@@ -332,6 +544,8 @@ const handleResetTimer = async (): Promise<TimerState> => {
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null,
     completedSessions: 0
   };
@@ -367,6 +581,8 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null
   };
 
@@ -423,6 +639,8 @@ const handleTimerCompleted = async (
         taskTitleSnapshot: taskTitle,
         focusModeId: snapshot.appliedFocusModeId,
         cycleStartedAt: timerState.cycleStartedAt,
+        cycleStartedLocalDate: timerState.cycleStartedLocalDate,
+        cycleLocalStartMinute: timerState.cycleLocalStartMinute,
         completedAt,
         durationSeconds
       })
@@ -438,6 +656,12 @@ const handleTimerCompleted = async (
       targetEndTime: nextTargetEndTime,
       cycleId: nextCycleId,
       cycleStartedAt: nextTargetEndTime ? completedAt : null,
+      cycleStartedLocalDate: nextTargetEndTime
+        ? getLocalDateKey(new Date(completedAt))
+        : null,
+      cycleLocalStartMinute: nextTargetEndTime
+        ? getLocalStartMinute(new Date(completedAt))
+        : null,
       activeTaskId,
       completedSessions
     };
@@ -481,6 +705,8 @@ const handleTimerCompleted = async (
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null,
     activeTaskId: timerState.activeTaskId
   };
@@ -495,6 +721,15 @@ const handleDeleteTaskStatistics = async (taskId: string) => {
   const nextSessionEvents = removeTaskSessionEvents(sessionEvents, taskId);
   await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
   return { statistics: nextStatistics, sessionEvents: nextSessionEvents };
+};
+
+const handleSaveFocusReviewGoals = async (payload: unknown) => {
+  if (!isFocusReviewGoalsPayload(payload)) {
+    throw new Error('Invalid Focus Review goals payload.');
+  }
+  const focusReviewGoals = normalizeFocusReviewGoals(payload);
+  await setLocal({ focusReviewGoals });
+  return { focusReviewGoals };
 };
 
 const handleFocusModeMutation = async (message: FocusModeMutationMessage) => {
@@ -553,6 +788,10 @@ chrome.runtime.onStartup.addListener(() => {
   void ensureRuntimeReady();
 });
 
+chrome.windows.onRemoved.addListener((windowId) => {
+  void forgetAppWindowId(windowId);
+});
+
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
   const respond = async (): Promise<void> => {
     if (!message?.type) {
@@ -564,6 +803,21 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
       case 'POPUP_ENSURE_READY':
         await ensureRuntimeReady();
         sendResponse({ ok: true });
+        return;
+      case 'OPEN_APP_WINDOW':
+        await openAppWindow(message.payload);
+        sendResponse({ ok: true });
+        return;
+      case 'APP_WINDOW_READY':
+        await rememberAppWindowId(message.payload.windowId);
+        sendResponse({ ok: true });
+        return;
+      case 'APP_WINDOW_CLOSED':
+        await forgetAppWindowId();
+        sendResponse({ ok: true });
+        return;
+      case 'TOGGLE_APP_WINDOW_MAXIMIZED':
+        sendResponse({ ok: true, maximized: await toggleAppWindowMaximized() });
         return;
       case 'POPUP_START_TIMER':
         sendResponse({
@@ -593,6 +847,26 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
           handleDeleteTaskStatistics(message.payload.taskId)
         );
         sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'SAVE_FOCUS_REVIEW_GOALS': {
+        const result = await enqueueTimerOperation(() =>
+          handleSaveFocusReviewGoals(message.payload)
+        );
+        sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'IMPORT_USER_DATA': {
+        const data = await enqueueTimerOperation(() => importStoredData(message.payload.raw));
+        try {
+          await stopOffscreenTimer();
+        } catch (error) {
+          console.warn(
+            'Could not stop offscreen timer after import.',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+        sendResponse({ ok: true, data });
         return;
       }
       case 'SELECT_FOCUS_MODE':

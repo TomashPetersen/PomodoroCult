@@ -7,7 +7,7 @@ This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`, 
 Version 1.2.0 introduces two independent monetization paths without weakening the existing free timer:
 
 1. A voluntary `Support Pomodoro Cult` donation link that does not unlock features.
-2. A one-time `Lifetime Pro` purchase that unlocks reusable Focus Modes, Focus Review analytics, goals, and local reports.
+2. A possible later one-time `Lifetime Pro` purchase around additive capabilities after ungated product validation. Phase 3 ships Focus Modes, Focus Review, global goals, and local reports to every user; Phase 4 alone may evaluate gates.
 
 The user must be able to keep using the timer, tasks, current statistics, compact popup, large workspace, three built-in sounds, and JSON backup without paying or creating an account. Pro must add reuse and insight rather than remove existing functionality.
 
@@ -103,6 +103,13 @@ Observable outcome:
 - [ ] 2026-07-11: Pending — QA-Agent release review completed.
 - [ ] 2026-07-11: Pending — Firefox production build and AMO package validated.
 
+- [x] 2026-07-14 23:04 +04:00: Audited the Phase 3 prompt, current branch, required plans, storage/runtime ownership, statistics UI, and deterministic harness boundaries before implementation.
+- [x] 2026-07-14 23:04 +04:00: Added the decision-complete Phase 3 contract for storage v4, coverage, immutable local-time metadata, analytics, global goals, secure reports, UI, migration recovery, and performance evidence.
+- [x] 2026-07-14 23:18 +04:00: QA-Agent architectural challenge completed with `DESIGN APPROVE` after two correction passes covering ungated scope, cycle-start local metadata, trustworthy coverage, partial goals/streak, finite bounds, queued import, Chrome window parity, week-to-date reporting, ordinal date math, deterministic ids, and exact migration recovery.
+- [x] 2026-07-14 23:43 +04:00: Implemented the first Phase 3 milestone: storage v4 goals/coverage, quota-safe v3 transition, immutable cycle-local start capture, completion-local metadata, queued goals/import on both runtimes, and permission-free Chrome app-window recovery/focus/de-duplication from Chrome 109 onward.
+- [x] 2026-07-14 23:43 +04:00: Phase 3 storage foundation harness, all three Phase 2 regression harnesses, diff check, TypeScript, and Chrome/Firefox production builds pass after QA-requested forged-coverage, import-ordering, window-toggle, and Chrome 109 singleton fixes.
+- [x] 2026-07-14 23:46 +04:00: QA-Agent independently repeated all four harnesses, diff check, TypeScript, and both production builds, then returned `APPROVE` for the storage/runtime milestone. Packaged runtime remains a final Phase 3 gate.
+
 ## Surprises & Discoveries
 
 - AMO distributes extensions for free but Mozilla explicitly permits charging for enhanced features and asking for donations. Payment requirements, data collection, and monetization controls must be disclosed clearly.
@@ -149,6 +156,12 @@ Observable outcome:
 - A payment provider webhook can be retried. The backend must be idempotent and treat provider invoice or contract ids as unique events.
 - Refund and chargeback handling is mandatory. A lifetime entitlement cannot remain permanently valid after a verified refund unless that is an explicit business decision.
 
+- Phase 3 cannot derive trustworthy timestamped history from legacy aggregates. Review, goals, comparisons, streaks, best-window analysis, CSV rows, and timestamped Markdown totals therefore use only normalized `SessionEvent` records; the existing list/chart continue to show aggregates unchanged.
+- A v4 migration cannot use the legacy full-document backup path for v3 histories because that would duplicate the unbounded `sessionEvents` array and can turn an additive migration into a quota failure. The transition needs an atomic minimal patch and minimal recovery evidence.
+- Durable local calendar keys and start minute are the analytical facts. The optional completion-time offset is context only, while v3 events without captured metadata remain explicitly inferred from timestamps.
+- Treating newly optional TimerState local fields as mandatory repair keys would force a second write after the deliberately minimal v3-to-v4 transition. Equality therefore treats absent legacy cycle-local fields as normalized null while still repairing unrelated malformed TimerState fields.
+- JSON import was still a UI-owned full-storage write despite the Phase 2 initialization remediation. Phase 3 moves it into the same platform queue as completion and goals so import has one linearization point and stale completion cannot mix old and imported state.
+
 ## Decision Log
 
 - Keep the current free product free. Do not move existing timer, task, app-window, chart, basic sound, or JSON backup functionality behind Pro.
@@ -156,8 +169,7 @@ Observable outcome:
 - Donations do not grant entitlements in v1.2.0.
 - Use one `FocusMode` entity. Tasks may reference a mode id but must not copy mode settings.
 - Apply mode edits only to the next timer cycle. A running or paused cycle uses a snapshot captured at start.
-- Free users receive built-in modes and one editable custom mode. Pro unlocks unlimited custom modes and task-to-mode binding.
-- Focus Review, goals, previous-period comparison, and reports are Pro. The existing statistics list and chart remain Free.
+- Phase 2 and Phase 3 give every user unlimited Focus Modes, task binding, Focus Review, global goals, previous-period comparison, CSV, and Markdown. Any later Free/Pro boundary is a Phase 4 hypothesis and cannot retroactively describe the ungated Phase 3 implementation.
 - Do not promise best focus windows until timestamped session events exist and minimum sample thresholds are defined.
 - Keep payment provider details out of extension code. The extension opens project-controlled HTTPS routes such as `/support` and `/pro`.
 - Keep provider API keys and entitlement signing keys only in the backend secret store.
@@ -207,6 +219,83 @@ Observable outcome:
 - UI surfaces send one semantic audio intent, never a reconstructed full audio state. Chrome and Firefox background handlers serialize the intent with timer/domain mutations and merge it against `resolveActiveWorkFocusMusicSettings`; this makes rapid toggles and cross-window track/volume changes atomic without optimistic UI ownership.
 - Keep runtime instrumentation outside the repository and production package. The QA copy may prepend a local background-realm script to observe Audio generation, play/pause, volume, completion chime, and late promises, because popup-realm monkeypatches cannot survive the required popup-close scenario.
 
+- Phase 3 is ungated for every user. Earlier roadmap labels such as `Focus Review Pro` and deferred goals/reports are superseded for this phase; no entitlement, tier check, limit, donation, licensing, or feature registry is introduced.
+- Markdown exports the current local Monday-to-Sunday week and labels it explicitly. The selected Review range controls on-screen analytics and CSV only.
+- Global Review goals are independent of `FocusMode.sessionGoal`. Daily and weekly values are nullable positive integers in the shared inclusive range 1-99; `null` disables the goal and progress is not capped at 100 percent.
+- JSON import is an authoritative background mutation on both platforms. It parses before mutation, writes the safe-idle imported document and pre-import backup once inside the queue, then stops scheduling/audio only after success.
+- Chrome 109-115 cannot use `runtime.getContexts`, and `windows.getAll({ populate: true })` cannot expose tab URLs without the forbidden `tabs` permission. Chrome therefore persists the app-window id in `storage.session`, validates it through `windows.get` after service-worker restart, refreshes it through periodic `APP_WINDOW_READY`, and clears it on window removal/close. Chrome 116+ context discovery is only a permission-free recovery path; an in-flight promise still de-duplicates concurrent opens.
+
+## Phase 3 Design Contract
+
+Recorded on 2026-07-14 23:04 +04:00 before production implementation as the architectural handoff for the mandatory QA design challenge.
+
+### Storage and authoritative data
+
+- Raise `CURRENT_STORAGE_VERSION` to `4`; add `focusReviewGoals` and `sessionEventLogStartedAt` to storage, JSON backup/import, hydration, and listeners.
+- Goal values are `number | null`. One shared normalizer accepts finite integers from 1 through 99 and maps every other value to `null` for storage, import, and runtime messages; a non-object runtime payload is rejected without a write.
+- `SessionEvent` gains optional `completedLocalDate`, `startedLocalDate`, `localStartMinute`, and `timeZoneOffsetMinutes`. Dates are strict real `YYYY-MM-DD` values, minute is 0-1439, and offset is an integer from -1440 through 1440.
+- `timeZoneOffsetMinutes` follows `Date#getTimezoneOffset()` at completion: minutes added to local time to obtain UTC, positive west of UTC and negative east. It is context, not a re-bucketing rule.
+- Extend `TimerState` with nullable cycle-start local date/minute metadata. A new cycle captures it with `cycleStartedAt`; Pause/Resume preserves it, and Reset/Stop/Skip/ready transitions clear it. Auto-start captures its own next-cycle metadata. Existing active v3 cycles migrate with these fields null rather than fabricated.
+- New Work events copy `startedLocalDate` and `localStartMinute` from the cycle snapshot, then capture `completedLocalDate` and completion `timeZoneOffsetMinutes` at accepted completion. This survives a timezone change during an active session. Captured metadata is immutable; cross-midnight sessions belong wholly to completion date and start-minute bucket.
+- V3 events remain valid without optional metadata. Missing local values are derived from timestamps in the snapshot runtime timezone, marked `inferred`, and never persisted back.
+- Phase 3 timestamped metrics use only normalized `sessionEvents`. Aggregate `statistics` remain the existing list/chart source and are never added or fabricated into events. Atomic task-statistics deletion continues removing both.
+- Review results are not persisted. The pure engine and each export consume one immutable `StoredData` snapshot.
+
+### Coverage, calendar, and invalid data
+
+- `sessionEventLogStartedAt` is the first instant after which absence can mean zero. Trustworthy original v3 migration evidence requires `fromVersion < 3`, `toVersion === 3`, a finite non-future `createdAt`, and a backup shape predating `sessionEvents`; v3-to-v3 import backups are never used. Otherwise choose earliest valid event `completedAt`; with no valid event choose v4 migration/import time. It never predates evidence.
+- A coverage value must be finite, non-negative, within JavaScript Date range, and not future at normalization. Repeated v4 initialization preserves a valid value.
+- Ranges are inclusive strict local date keys converted to Gregorian date ordinals with UTC calendar math. Endpoint add/subtract and range length are O(1), never fixed elapsed milliseconds and never an array of every range day. Previous range has the same date count and ends the ordinal before current start. UI/engine/export reject a current/custom end ordinal after today's local ordinal rather than clamping or treating future dates as zero.
+- Membership uses captured completion date or inferred fallback. Base timestamps are integers from 0 through `8.64e15`, completion cannot precede start or exceed absolute `now`, and duration is an integer from 1 through 86,400 seconds. Optional metadata, when present, must satisfy its structural bounds. Captured date remains authoritative across date-line travel and is not compared with the current runtime's `today`; when completion offset is present, `completedLocalDate` must match `completedAt` shifted by that captured offset. These bounds keep 50,000-event sums below `Number.MAX_SAFE_INTEGER`.
+- Coverage is `full` only when selected local start-of-day is at or after coverage; an overlap beginning earlier is `partial`; a range ending before coverage is `none`. Totals remain observed values labeled with that state, but comparison is `insufficient-coverage` unless both current and previous ranges are fully covered.
+- UI/reports show the coverage date, partial state, and captured-versus-inferred explanation. Missing history is never displayed as a confirmed zero.
+
+### Pure engine and formulas
+
+- Add `src/lib/focusReview.ts`: no React, storage, network, localization, or input mutation. It returns typed semantic values and uses `Map` for user ids in O(n) or O(n log n).
+- Totals are eligible duration sum and event count; one event is enough.
+- Equal-period comparisons use `(current - previous) / previous * 100`, `Math.round`; previous zero/current positive is `new`, both zero `neutral`, incomplete coverage `insufficient-coverage`. Duration and sessions compare independently.
+- Strongest day requires at least three events across two completion dates; rank duration descending, sessions descending, date ascending.
+- Strongest task groups stable `taskId`; the three-event/two-date threshold applies to the selected range overall, not separately per candidate. It displays newest eligible non-empty title chosen by `completedAt` descending then event id ascending (or honest id/No Task fallback), and ranks duration descending, sessions descending, task id ascending.
+- Task distribution is duration-based and returns current/previous shares plus percentage-point delta. Zero denominator yields zero. Rank duration descending, sessions descending, task id ascending.
+- Streak builds a `Set` of distinct eligible date ordinals and walks backward only across consecutive observed dates, so work is bounded by event-date count. It ends today when today has an event, otherwise yesterday, and never walks earlier than coverage date. Reaching the partial coverage date always yields `coverage-limited`: an event on the boundary is counted, while no event there terminates only a lower bound because the pre-coverage portion is unknown. Render `At least N days`; if coverage begins today/yesterday and missing pre-coverage events can change a zero, return `insufficient-coverage`. Future absolute completions are ignored.
+- Best window uses fixed buckets `[00:00,02:00)` through `[22:00,24:00)`, requires ten eligible timestamped sessions across four start dates, assigns full duration by local start minute, and ranks duration, sessions, then bucket start.
+- Daily goal counts today; weekly counts current local Monday-Sunday. Each goal has coverage state. Disabled is `disabled`; enabled partial/none coverage is `partial-coverage` with observed count but never `below`; only full coverage returns `below | met | exceeded`. Ratio may exceed 1.
+- Duplicate event ids use the first valid occurrence in immutable snapshot order. Every stable string tie (`event.id`, `taskId`, mode id) uses a locale-independent ordinal UTF-16 comparator (`a < b`, `a > b`), never `localeCompare`, so Chrome, Firefox, Russian, and English produce identical results.
+- All sums/percentages stay finite. Event ordering is completion ascending then ordinal stable id.
+
+### UI and accessibility
+
+- Extend `StatsView` to `list | chart | review`. Review is a full large-window page. Popup list/chart remains and gains only an accessible action that opens/focuses Review in the existing app window.
+- Chrome and Firefox backgrounds both implement `OPEN_APP_WINDOW`: discover an existing `app.html` window after background restart, focus it and send `APP_WINDOW_NAVIGATE` with `statsView: review`, or create exactly one window through a shared in-flight de-duplication promise. Firefox uses its existing window discovery; Chrome uses a `storage.session` window id validated with `windows.get`, plus optional `runtime.getContexts` recovery on Chrome 116+. This works at the declared Chrome 109 minimum without `tabs` or any new permission.
+- Review contains range/coverage, totals, comparison, strongest day/task, goal editor/progress, streak, distribution, best window/sparse state, formula help, and report actions, with explicit empty/partial/insufficient/error states.
+- `SAVE_FOCUS_REVIEW_GOALS` runs through the authoritative Chrome/Firefox queue. UI never performs goal read-modify-write; background re-reads, validates, and changes only goals.
+- Add RU/EN strings, semantic headings/native labels, visible focus, focus/keyboard help, reduced-motion safety, long-title handling, both themes, and no critical overflow at required sizes.
+
+### V4 migration, import, and concurrency
+
+- V3-to-v4 uses one `storage.local.set` with only version, normalized goals, coverage, and minimal migration evidence if needed. It never rewrites `sessionEvents` for absent optional metadata and never spreads the full document into the write.
+- If no prior backup exists, exact v3 recovery evidence is `MigrationBackup { fromVersion: 3, toVersion: 4, createdAt, data: { storageVersion: 3 } }`; an old v3 reader ignores additive goals/coverage/event metadata, and manual rollback needs only the old version marker. If any prior backup exists, preserve it byte-for-byte and do not create or nest v4 evidence.
+- Failed atomic write leaves v3 usable; retry is idempotent. V0/v1/v2 may retain full backup behavior because they cannot contain the v3 event log.
+- JSON includes goals, coverage, and captured event metadata. Import normalizes them, forces idle timer, preserves all product data, never starts music, rejects malformed JSON and `{}`, and derives honest coverage for pre-v4 input.
+- Add typed `IMPORT_USER_DATA` and move parse/current-backup/final write into both authoritative background queues. UI only sends raw user-selected JSON and applies the returned snapshot. An earlier completion is included in the pre-import backup then intentionally replaced; a later stale completion observes safe idle and is rejected. The imported safe-idle document plus backup is one coherent write. Only after success does Chrome stop offscreen scheduling and Firefox clear alarms/invalidate music. Write failure leaves old data/runtime active and returns a recoverable error.
+- Completion and goal save share the queue so neither loses the other's write. Completion captures local metadata once and remains exact-once.
+
+### CSV and Markdown security
+
+- CSV is local and click-only for the selected range. It emits eligible normalized events with English headers `id,startedAt,completedAt,durationSeconds,taskId,taskTitleSnapshot,focusModeId`, ISO UTC timestamps, completion/id ordering, CRLF, and UTF-8 BOM.
+- Quote every CSV field and double quotes. Prefix a single apostrophe when a string starts with tab/CR/LF or its first non-whitespace/control character is `=`, `+`, `-`, or `@`; apply explicitly to every string column: `id`, `taskId`, `taskTitleSnapshot`, and `focusModeId`. Filename uses only validated keys.
+- Download uses local `Blob`, temporary anchor, URL revocation, no network/permission/`innerHTML`.
+- Markdown labels the current local Monday-Sunday week but reports `week to date`, Monday through today, so future weekdays are never zeros. Previous comparison uses the same number of elapsed weekdays ending on the corresponding prior-week weekday. It includes the full-week label plus through-date, event totals/comparison, strongest values, goals, streak, ranking, window/sparse state, and coverage/provenance.
+- User text becomes one line, escapes backslashes first, then pipes, backticks, angle brackets, headings/lists, brackets/parentheses, emphasis, and exclamation marks so it cannot create structure, links/images, code, HTML, or sections.
+
+### Performance and verification
+
+- The Phase 3 harness covers all 30 required analytics, migration, concurrency, import, security, ordering, and scale scenarios; all three existing harnesses repeat unchanged.
+- Fixtures include 10,000/50,000 events, many tasks, adversarial text, and long custom ranges. Record storage byte size and measured engine/report time; no unstable strict timing assertion.
+- Each milestone runs diff check, TypeScript, Chrome build, and Firefox build. Run local `web-ext lint` if available and report honestly.
+- Packaged Firefox QA covers migration, reopen/de-duplication, Review, goals, exact-once completion, deletion, JSON/CSV/Markdown, unchanged timer/music, console, visual, and accessibility flows. Chrome build is mandatory; unavailable live runtime evidence remains residual risk.
+
 ## Outcomes & Retrospective
 
 Phase 0 implementation, static concurrency review, automated Firefox runtime verification, QA-Agent approval, and the scoped baseline commit are complete. The Firefox runtime has one background-owned focus-music reconciler and no UI-owned player, while layout styles, storage schema, permissions, donation configuration, entitlements, feature gates, and Focus Modes remain unchanged. Diff, TypeScript, Firefox build, popup load, timer/music state transitions, rapid pause stress, app-window de-duplication, exact-once completion, notification count, and legacy normalization checks pass without extension console errors. `web-ext lint`, subjective full-length Stream continuity, and UI-driven JSON file-picker flows remain documented manual release risks; they do not block subsequent Phase 1 planning.
@@ -218,6 +307,8 @@ Phase 2 was committed as `719fe3e` before a post-commit security review found `S
 Deterministic interleavings, static gates, both packaged runtimes, and independent QA pass. Chromium supplied direct one-chime/stale-silence evidence. Headless Firefox does not expose native audio/notification events through BiDi cross-compartment wrappers, but exact-once completion, no-deadlock behavior, and the single 12,695 ms effects pipeline were observed; QA accepted this as a non-blocking observation limitation for the storage finding. `SEC-P2-001` is closed. Focus Music remains a separate Phase 2 blocker and Phase 3 has not started.
 
 The final Phase 2 Focus Music blocker is closed. Atomic intents update the manual audio baseline and only the active Work snapshot's audio fields; all deterministic/static/build gates pass. Packaged Firefox confirms the production reconciler's live controls, popup/app continuity, and exact-once completion, while six screenshots confirm unchanged layout across required sizes, themes, and languages. QA-Agent independently returned `APPROVE`. Native notification observability and unavailable optional lint remain explicit non-blocking residual limits.
+
+Phase 3 milestone 1 implements the v4 persistence/runtime foundation without derived analytics or report UI. V3 migration writes no `sessionEvents` copy, repeated initialization is idempotent, quota failure leaves v3 untouched, new cycles preserve captured start-local facts across Pause/Resume, completion records captured completion context, goals/import share both authoritative queues, and Chrome can focus one existing app window. Deterministic/static/build evidence passes; independent milestone QA remains pending before commit.
 
 Across the complete Phase 2 delivery, the augmented domain/migration and concurrency harnesses, Focus Music 15-scenario harness, diff check, TypeScript, both production builds, clean-profile Firefox 152 runtime automation, keyboard checks, and visual checks across popup/normal/maximized surfaces, light/dark themes, and English/Russian pass. QA-Agent verdict is `APPROVE`. No feature gate, count limit, entitlement, donation, dependency, permission, manifest version, or application version was added. Residual non-blocking risks are unavailable current `web-ext` lint, live Chrome runtime coverage for this audio-only follow-up, and native notification observability in headless Firefox; the notification code was not changed by this diff.
 
@@ -341,7 +432,7 @@ Initially ship this phase without Pro restrictions. Use it to validate the domai
 
 ### Phase 3: Implement Focus Review and Reports
 
-Focus Review Pro modules:
+Focus Review modules (ungated in Phase 3):
 
 - total focus and completed sessions;
 - previous equivalent period comparison;
@@ -790,3 +881,13 @@ Revision note 2026-07-13 21:14 +04:00: Incorporated QA's stale UI payload findin
 Revision note 2026-07-13 22:28 +04:00: Recorded successful packaged Firefox Focus Music runtime and six-screenshot visual evidence after isolating QA process-tree/profile issues. Added the external background-realm instrumentation decision, direct chime evidence, native-notification observation limit, and the remaining independent-QA gate without claiming Phase 2 completion prematurely.
 
 Revision note 2026-07-13 22:35 +04:00: Recorded independent QA-Agent `APPROVE`, closed the final Phase 2 Focus Music residual, superseded stale pending-runtime/QA entries, and retained unavailable optional lint plus native headless-notification observability as explicit non-blocking limits. The isolated fix is ready for its required commit; Phase 3 remains unstarted.
+
+Revision note 2026-07-14 23:04 +04:00: Started Phase 3 with the mandatory pre-implementation design gate. Added explicit event-only analytics, global-goal, coverage, captured/inferred local-time, quota-safe v4 migration, deterministic formula/tie, secure CSV/Markdown, UI/accessibility, concurrency, and performance contracts; production implementation remains blocked on QA-Agent `DESIGN APPROVE`.
+
+Revision note 2026-07-14 23:18 +04:00: Revised the Phase 3 contract through two QA challenge passes. Superseded stale Pro decisions; captured start-local facts in TimerState; tightened v3 evidence, partial coverage, and finite bounds; serialized import; added Chrome window parity, week-to-date reporting, ordinal date math, exact recovery data, and locale-independent tie rules. QA-Agent returned `DESIGN APPROVE`, so implementation may begin.
+
+Revision note 2026-07-14 23:32 +04:00: Recorded the implemented storage-v4/runtime foundation and passing Phase 3 storage harness, three regression harnesses, diff check, TypeScript, and both builds. The first isolated commit remains blocked on independent QA-Agent approval.
+
+Revision note 2026-07-14 23:43 +04:00: Incorporated milestone QA findings: pre-v4 input can no longer forge coverage, both import/completion queue orders are asserted, Chrome and Firefox share the fullscreen-state contract, and Chrome 109 singleton recovery now uses a validated `storage.session` id instead of permission-dependent tab URLs. Repeated harness, static, and production-build gates pass; final milestone approval remains pending.
+
+Revision note 2026-07-14 23:46 +04:00: Recorded independent QA-Agent `APPROVE` after it repeated all four harnesses, diff check, TypeScript, and both production builds. The isolated storage/runtime milestone is ready to commit; packaged runtime stays in the final Phase 3 gate.

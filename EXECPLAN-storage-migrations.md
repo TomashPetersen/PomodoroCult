@@ -29,6 +29,9 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - [x] 2026-07-12 21:09 +04:00: The temporary runtime-launch blocker cleared; packaged Chromium/Firefox smoke later passed and QA returned `APPROVE`.
 - [x] 2026-07-13 00:07 +04:00: Packaged runtime verified zero-write normalized reopen, continuity, Focus Mode/task persistence, concurrent readiness, correct-mode exact-once aggregate/Event completion, and Firefox no-deadlock recovery.
 - [x] 2026-07-13 00:07 +04:00: QA-Agent independently repeated all storage/domain/static/package gates and approved closure of `SEC-P2-001`.
+- [x] 2026-07-14 23:32 +04:00: Added storage v4 global Review goals, event-log coverage, cycle/event local-time metadata, and background-queued goal/import ownership without a permission, dependency, manifest, or application-version change.
+- [x] 2026-07-14 23:43 +04:00: Verified quota-safe v3-to-v4 migration, exact minimal recovery evidence, idempotence, write-failure rollback, captured metadata, forged pre-v4 coverage rejection, goal normalization, JSON round-trip, and completion/goal/import serialization in the Phase 3 foundation harness.
+- [x] 2026-07-14 23:46 +04:00: QA-Agent independently repeated all four harnesses, diff check, TypeScript, and both production builds, then approved the isolated storage/runtime milestone. Packaged runtime remains a final Phase 3 gate.
 
 ## Surprises & Discoveries
 
@@ -45,6 +48,8 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - A Phase 1 completed Break/Rest could leave ready Work marked `cycleStarted`. This is now recognized by its lack of running/paused state, target, and cycle id, then normalized to unlocked Work with no snapshot.
 - UI-owned `initializeStorage()` is a full asynchronous read-normalize-write transaction, not a harmless read. When it runs outside the background queue, it can restore stale TimerState, statistics, SessionEvents, mode CRUD, selection, bindings, or manual settings over a newer queued mutation.
 - Firefox recovery cannot simply enqueue the existing expired-timer path because it recursively reaches `completeExpiredTimer()`, which enqueues again. Initialization must use a non-enqueueing internal implementation and defer completion effects until the queued mutation returns.
+- The old real-version migration path spread the full normalized document and backup into one write. Reusing it for v3 would duplicate large SessionEvent history in `migrationBackup`; v4 needs a special additive patch that never writes the event array.
+- Import remained a UI-owned full write after initialization became background-owned. It now uses a typed queued mutation so completion, goals, import, scheduler cleanup, and safe-idle replacement have a deterministic order.
 
 ## Decision Log
 
@@ -64,12 +69,18 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - Imported timers always become safe idle with `activeCycleSnapshot: null`; selected/global mode, manual settings, custom modes, task bindings, and historical SessionEvents remain portable.
 - Background owns initialization and migrations on both platforms. `POPUP_ENSURE_READY`, startup, and install all serialize that internal operation with timer, mode, task, and statistics mutations; UI then uses `readStoredData()` only.
 - Do not raise storage version for this integrity fix. A real version migration writes the normalized document and creates one backup; current-v3 normalization writes only keys whose normalized values differ, and a normal reopen writes nothing.
+- Version 4 adds `focusReviewGoals`, `sessionEventLogStartedAt`, nullable TimerState cycle-local start facts, and optional captured SessionEvent local metadata. Global goals do not reuse `FocusMode.sessionGoal`.
+- For v3-to-v4, write normalized non-event repairs plus version/goals/coverage and, only when no backup exists, exact recovery data `{ storageVersion: 3 }`. Preserve any existing backup byte-for-byte. Never rewrite `sessionEvents` solely for missing optional metadata.
+- Trust a persisted coverage field only in v4+ data. For pre-v4 input, trust original v3 coverage evidence only when a backup has `fromVersion < 3`, `toVersion === 3`, valid `createdAt`, and pre-event data; otherwise use earliest valid event completion or migration/import time.
+- UI import sends `IMPORT_USER_DATA`; Chrome and Firefox parse, back up current data, and write the safe-idle import once in their authoritative queue. Runtime scheduling/music cleanup happens only after the write succeeds.
 
 ## Outcomes & Retrospective
 
 Implemented schema metadata, migration backup, export/import helpers, and Settings UI controls. Storage v3 provides canonical/custom Focus Modes, explicit global/manual selection state, task bindings, active-cycle snapshots, and exact-once timestamped Work events. The post-`719fe3e` initialization race is an open integrity blocker until the serialized background-owned initialization change and independent QA pass are complete. Restore-from-backup remains manual/future-facing, and event retention remains intentionally uncapped until real storage growth is measured.
 
 The remediation prevents disposable UI contexts from writing initialization snapshots and proves the required queue interleavings deterministically and in packaged Chromium/Firefox runtimes. Legacy migration creates one backup, repeated initialization is idempotent, and an already-normalized reopen writes nothing. Independent QA approved the lifecycle-sensitive ownership change, so the storage integrity blocker is closed. Firefox native audio/notification event visibility in headless BiDi remains an observation limitation, not a storage correctness risk.
+
+Storage v4 now performs an additive quota-safe transition from v3. A 50,000-event array is neither rewritten nor copied into new migration evidence, write failure leaves the old schema usable, and missing legacy cycle-local metadata stays honestly null. Pre-v4 input cannot forge coverage. Goals and JSON import use the same background queues as completion, and both completion/import orderings have deterministic evidence. The deterministic foundation harness, all regression harnesses, and both production builds pass; QA-Agent approved the milestone. Packaged runtime remains a final Phase 3 gate.
 
 ## Context and Orientation
 
@@ -97,6 +108,8 @@ New keys:
 - `selectedFocusModeId`
 - `manualSettings`
 - `sessionEvents`
+- `focusReviewGoals`
+- `sessionEventLogStartedAt`
 
 ## Plan of Work
 
@@ -107,6 +120,7 @@ New keys:
 5. Add Settings UI controls for download and file upload. Done.
 6. Validate builds and a legacy-data migration harness. Done for v0/v1/v2 to v3 and the built Firefox runtime; UI file-picker interaction remains a release-level manual check.
 7. Add explicit Focus Mode selection/manual fields and timer snapshots without raising the storage version. Done and verified through the Phase 2 harness and Firefox runtime.
+8. Add quota-safe storage v4 Review goals/coverage and cycle-local metadata. Implemented; independent QA and packaged runtime remain pending.
 
 ## Concrete Steps
 
@@ -196,3 +210,9 @@ No new npm dependencies. Import/export uses browser file APIs and JSON.
 2026-07-12 21:09 +04:00 note: Recorded independent QA's no-code-blocker review and `CHANGES REQUIRED` runtime gate, plus the environment limit that denied the prepared Chrome/Firefox live harness. No storage closure or commit was claimed.
 
 2026-07-13 00:07 +04:00 note: Closed the initialization integrity blocker after packaged Chrome/Firefox lifecycle PASS, exact-once persistence evidence, all deterministic/static/build/lint gates, and independent QA-Agent `APPROVE`.
+
+2026-07-14 23:32 +04:00 note: Added the actual v4 additive migration, exact minimal v3 recovery payload, coverage evidence rules, captured cycle/event local metadata, shared goal normalization, queued JSON import, deterministic foundation tests, and passing TypeScript/Chrome/Firefox builds. Independent QA and packaged runtime remain pending.
+
+2026-07-14 23:43 +04:00 note: Tightened coverage to ignore persisted pre-v4 fields and expanded deterministic import/completion ordering evidence after independent QA review. Repeated all storage, regression, static, and production-build gates; final milestone approval remains pending.
+
+2026-07-14 23:46 +04:00 note: Recorded independent QA-Agent `APPROVE` after all four harnesses, diff check, TypeScript, and both production builds passed again. The isolated storage/runtime milestone is ready to commit; packaged runtime remains in the final Phase 3 gate.

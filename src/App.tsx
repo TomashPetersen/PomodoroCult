@@ -19,7 +19,7 @@ import { ActionIconButton } from './components/ActionIconButton';
 import { AppVersionBadge } from './components/AppVersionBadge';
 import { formatDateRange } from './lib/format';
 import { cn } from './lib/ui';
-import { AppScreen, RuntimeMessage } from './lib/types';
+import { AppScreen, RuntimeMessage, StatsView } from './lib/types';
 import { useAppStore } from './store/useAppStore';
 
 type AppSurface = 'popup' | 'appWindow';
@@ -105,7 +105,7 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
   };
 
   useEffect(() => {
-    const applyNavigation = (payload?: { screen?: AppScreen; statsView?: 'list' | 'chart' }) => {
+    const applyNavigation = (payload?: { screen?: AppScreen; statsView?: StatsView }) => {
       if (!payload) return;
       if (payload.screen) {
         setScreen(payload.screen);
@@ -118,7 +118,14 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
     const params = new URLSearchParams(window.location.search);
     applyNavigation({
       screen: params.get('screen') === 'stats' ? 'stats' : params.get('screen') === 'tasks' ? 'tasks' : undefined,
-      statsView: params.get('statsView') === 'chart' ? 'chart' : params.get('statsView') === 'list' ? 'list' : undefined
+      statsView:
+        params.get('statsView') === 'review'
+          ? 'review'
+          : params.get('statsView') === 'chart'
+            ? 'chart'
+            : params.get('statsView') === 'list'
+              ? 'list'
+              : undefined
     });
 
     const handleMessage = (message: RuntimeMessage) => {

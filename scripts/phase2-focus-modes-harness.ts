@@ -41,9 +41,9 @@ const customValues: FocusModeEditableValues = {
   soundVolume: 0.3
 };
 
-for (const storageVersion of [undefined, 1, 2, 3]) {
+for (const storageVersion of [undefined, 1, 2, 3, 4]) {
   const normalized = normalizeStoredData({ storageVersion } as Partial<PersistedStorage>);
-  assert(normalized.storageVersion === 3, `v${storageVersion ?? 0} did not normalize to v3`);
+  assert(normalized.storageVersion === 4, `v${storageVersion ?? 0} did not normalize to v4`);
   assert(normalized.focusModes.length === 5, 'canonical built-ins missing');
   assert(normalized.selectedFocusModeId === null, 'legacy global selection must be manual');
   assert(normalized.timerState.activeCycleSnapshot === null, 'idle migration created a snapshot');

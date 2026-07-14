@@ -7,6 +7,7 @@ import {
   resolveNextWorkSnapshot
 } from '../lib/focusModes';
 import { detectBrowserLocale, resolveLocale, t } from '../lib/i18n';
+import { normalizeFocusReviewGoals } from '../lib/focusReviewGoals';
 import {
   applyThemeClass,
   areTimerDurationsLocked,
@@ -20,7 +21,6 @@ import {
   getRunningDisplaySeconds,
   hasStartedTimerCycle,
   hasActiveTaskTitle,
-  importStoredData,
   isTimerTaskLocked,
   normalizeSessionEvents,
   normalizeSettings,
@@ -38,6 +38,7 @@ import {
   Locale,
   FocusMode,
   FocusModeEditableValues,
+  FocusReviewGoals,
   RuntimeMessage,
   SessionEvent,
   Settings,
@@ -67,6 +68,8 @@ interface RuntimeResponse {
   tasks?: Task[];
   focusModeId?: string;
   taskId?: string;
+  focusReviewGoals?: FocusReviewGoals;
+  data?: StoredData;
 }
 
 interface AppStore extends StoredData {
@@ -102,6 +105,7 @@ interface AppStore extends StoredData {
   closeSettings: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
   saveFocusMusicSettings: (command: FocusMusicControlCommand) => Promise<void>;
+  saveFocusReviewGoals: (goals: FocusReviewGoals) => Promise<void>;
   selectFocusMode: (focusModeId: string | null) => Promise<void>;
   createFocusMode: (values: FocusModeEditableValues) => Promise<string | null>;
   updateFocusMode: (focusModeId: string, values: FocusModeEditableValues) => Promise<void>;
@@ -237,6 +241,8 @@ const initialData: StoredData = {
   selectedFocusModeId: null,
   manualSettings: DEFAULT_SETTINGS,
   sessionEvents: [],
+  focusReviewGoals: { dailySessions: null, weeklySessions: null },
+  sessionEventLogStartedAt: Date.now(),
   theme: 'light'
 };
 
@@ -339,6 +345,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
             if (changes.sessionEvents?.newValue !== undefined) {
               patch.sessionEvents = normalizeSessionEvents(changes.sessionEvents.newValue);
+            }
+
+            if (
+              changes.focusReviewGoals?.newValue !== undefined ||
+              changes.sessionEventLogStartedAt?.newValue !== undefined
+            ) {
+              if (changes.focusReviewGoals?.newValue !== undefined) {
+                patch.focusReviewGoals = normalizeFocusReviewGoals(
+                  changes.focusReviewGoals.newValue
+                );
+              }
+              const coverage = Number(changes.sessionEventLogStartedAt?.newValue);
+              if (
+                Number.isInteger(coverage) && coverage >= 0 &&
+                coverage <= Date.now()
+              ) {
+                patch.sessionEventLogStartedAt = coverage;
+              }
             }
 
             if (changes.theme?.newValue) {
@@ -460,6 +484,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ ...getAuthoritativeFocusModePatch(response), focusModeError: null });
   },
 
+  saveFocusReviewGoals: async (goals) => {
+    const response = await sendRuntimeMessage({
+      type: 'SAVE_FOCUS_REVIEW_GOALS',
+      payload: goals
+    });
+    if (!response?.ok || !response.focusReviewGoals) {
+      throw new Error(response?.error || 'Unable to save Focus Review goals.');
+    }
+    set({ focusReviewGoals: response.focusReviewGoals });
+  },
+
   selectFocusMode: async (focusModeId) => {
     try {
       const response = await sendRuntimeMessage({
@@ -557,13 +592,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { locale } = get();
 
     try {
-      const data = await importStoredData(raw);
-
-      try {
-        await sendRuntimeMessage({ type: 'POPUP_RESET_TIMER' });
-      } catch {
-        // Import already writes a safe idle state; runtime reset only clears pending alarms when available.
+      const response = await sendRuntimeMessage({ type: 'IMPORT_USER_DATA', payload: { raw } });
+      if (!response?.ok || !response.data) {
+        throw new Error(response?.error || t(locale, 'dataImportError'));
       }
+      const data = response.data;
 
       const nextLocale = resolveLocale(data.settings.languagePreference);
       applyThemeClass(data.theme);

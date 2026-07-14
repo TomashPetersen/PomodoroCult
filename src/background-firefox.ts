@@ -1,4 +1,5 @@
 import { FOCUS_MUSIC_TRACKS, NO_TASK_ID } from './lib/constants';
+import { getNextAppWindowState } from './lib/appWindow';
 import {
   getSnapshotDurationSeconds,
   resolveActiveWorkFocusMusicSettings,
@@ -6,6 +7,10 @@ import {
 } from './lib/focusModes';
 import { applyFocusModeMutation, FocusModeMutationMessage } from './lib/focusModeMutations';
 import { applyTaskMutation, TaskMutationMessage } from './lib/taskMutations';
+import {
+  isFocusReviewGoalsPayload,
+  normalizeFocusReviewGoals
+} from './lib/focusReviewGoals';
 import { getTimerModeLabel, resolveLocale, t } from './lib/i18n';
 import { createSerializedOperationQueue } from './lib/operationQueue';
 import {
@@ -19,9 +24,12 @@ import {
   createCycleId,
   createSessionEvent,
   ensureNoTask,
+  getLocalDateKey,
+  getLocalStartMinute,
   getNextTimerRevision,
   getRunningDisplaySeconds,
   initializeStorage,
+  importStoredData,
   readStoredData,
   removeTaskSessionEvents,
   removeTaskStatistics,
@@ -767,7 +775,7 @@ const toggleAppWindowMaximized = async (): Promise<boolean> => {
         return;
       }
 
-      const nextState = currentWindow.state === 'fullscreen' ? 'normal' : 'fullscreen';
+      const nextState = getNextAppWindowState(currentWindow.state);
 
       windowsApi.update(targetWindowId, { state: nextState, focused: true }, () => {
         const updateError = chrome.runtime.lastError;
@@ -865,6 +873,8 @@ const buildRunningState = (
   activeTaskId: string | null,
   cycleId: string,
   cycleStartedAt: number | null,
+  cycleStartedLocalDate: string | null,
+  cycleLocalStartMinute: number | null,
   activeCycleSnapshot: FocusModeSnapshot
 ): TimerState => ({
   ...timerState,
@@ -877,6 +887,8 @@ const buildRunningState = (
   targetEndTime,
   cycleId,
   cycleStartedAt,
+  cycleStartedLocalDate,
+  cycleLocalStartMinute,
   activeCycleSnapshot,
   activeTaskId
 });
@@ -943,6 +955,13 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
   const targetEndTime = startedAt + durationSeconds * 1000;
   const cycleId = isResume && timerState.cycleId ? timerState.cycleId : createCycleId();
   const cycleStartedAt = isResume ? timerState.cycleStartedAt : startedAt;
+  const cycleStartDate = new Date(startedAt);
+  const cycleStartedLocalDate = isResume
+    ? timerState.cycleStartedLocalDate
+    : getLocalDateKey(cycleStartDate);
+  const cycleLocalStartMinute = isResume
+    ? timerState.cycleLocalStartMinute
+    : getLocalStartMinute(cycleStartDate);
   const nextState = buildRunningState(
     timerState,
     mode,
@@ -951,6 +970,8 @@ const handleStartTimer = async (mode: TimerMode, startedAt: number): Promise<Tim
     activeTaskId ?? null,
     cycleId,
     cycleStartedAt,
+    cycleStartedLocalDate,
+    cycleLocalStartMinute,
     activeCycleSnapshot
   );
 
@@ -1029,6 +1050,8 @@ const handleResetTimer = async (): Promise<TimerState> => {
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null,
     completedSessions: 0
   };
@@ -1066,6 +1089,8 @@ const handleSkipShortBreak = async (): Promise<TimerState> => {
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null
   };
 
@@ -1125,6 +1150,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
         taskTitleSnapshot: taskTitle,
         focusModeId: snapshot.appliedFocusModeId,
         cycleStartedAt: timerState.cycleStartedAt,
+        cycleStartedLocalDate: timerState.cycleStartedLocalDate,
+        cycleLocalStartMinute: timerState.cycleLocalStartMinute,
         completedAt,
         durationSeconds
       })
@@ -1140,6 +1167,12 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
       targetEndTime: nextTargetEndTime,
       cycleId: nextCycleId,
       cycleStartedAt: nextTargetEndTime ? completedAt : null,
+      cycleStartedLocalDate: nextTargetEndTime
+        ? getLocalDateKey(new Date(completedAt))
+        : null,
+      cycleLocalStartMinute: nextTargetEndTime
+        ? getLocalStartMinute(new Date(completedAt))
+        : null,
       activeTaskId,
       completedSessions
     };
@@ -1178,6 +1211,8 @@ const handleTimerCompleted = async (timerState: TimerState): Promise<TimerState>
     targetEndTime: null,
     cycleId: null,
     cycleStartedAt: null,
+    cycleStartedLocalDate: null,
+    cycleLocalStartMinute: null,
     activeCycleSnapshot: null,
     activeTaskId: timerState.activeTaskId
   };
@@ -1193,6 +1228,15 @@ const handleDeleteTaskStatistics = async (taskId: string) => {
   const nextSessionEvents = removeTaskSessionEvents(sessionEvents, taskId);
   await setLocal({ statistics: nextStatistics, sessionEvents: nextSessionEvents });
   return { statistics: nextStatistics, sessionEvents: nextSessionEvents };
+};
+
+const handleSaveFocusReviewGoals = async (payload: unknown) => {
+  if (!isFocusReviewGoalsPayload(payload)) {
+    throw new Error('Invalid Focus Review goals payload.');
+  }
+  const focusReviewGoals = normalizeFocusReviewGoals(payload);
+  await setLocal({ focusReviewGoals });
+  return { focusReviewGoals };
 };
 
 const handleFocusModeMutation = async (message: FocusModeMutationMessage) => {
@@ -1444,6 +1488,21 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
           handleDeleteTaskStatistics(message.payload.taskId)
         );
         sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'SAVE_FOCUS_REVIEW_GOALS': {
+        const result = await enqueueTimerOperation(() =>
+          handleSaveFocusReviewGoals(message.payload)
+        );
+        sendResponse({ ok: true, ...result });
+        return;
+      }
+      case 'IMPORT_USER_DATA': {
+        const data = await enqueueTimerOperation(() => importStoredData(message.payload.raw));
+        invalidateFocusMusicPlayback(true);
+        await clearAlarm();
+        await requestFocusMusicReconcileBounded(true);
+        sendResponse({ ok: true, data });
         return;
       }
       case 'SELECT_FOCUS_MODE':

@@ -40,6 +40,7 @@ export default defineConfig({
             }
           : {
               popup: 'index.html',
+              app: 'app.html',
               offscreen: 'offscreen.html'
             }
     }

@@ -2,7 +2,7 @@ export type TimerMode = 'work' | 'shortBreak' | 'longBreak';
 export type TimerLifecycleState = 'idle' | 'running' | 'paused' | 'ready';
 export type ThemeMode = 'light' | 'dark';
 export type AppScreen = 'timer' | 'tasks' | 'stats';
-export type StatsView = 'list' | 'chart';
+export type StatsView = 'list' | 'chart' | 'review';
 export type StatsPeriod = '1d' | '7d' | '30d' | 'custom';
 export type Locale = 'ru' | 'en';
 export type LanguagePreference = 'auto' | Locale;
@@ -10,7 +10,12 @@ export type FocusMusicTrack = 'stream' | 'birds' | 'clock';
 export type PlanTier = 'free' | 'pro';
 export type FocusNotificationMode = 'normal' | 'soft' | 'sound-only';
 
-export const CURRENT_STORAGE_VERSION = 3;
+export const CURRENT_STORAGE_VERSION = 4;
+
+export interface FocusReviewGoals {
+  dailySessions: number | null;
+  weeklySessions: number | null;
+}
 
 export interface Settings {
   workTime: number;
@@ -52,6 +57,8 @@ export interface TimerState {
   targetEndTime: number | null;
   cycleId: string | null;
   cycleStartedAt: number | null;
+  cycleStartedLocalDate: string | null;
+  cycleLocalStartMinute: number | null;
   activeCycleSnapshot: FocusModeSnapshot | null;
   activeTaskId: string | null;
   completedSessions: number;
@@ -106,6 +113,10 @@ export interface SessionEvent {
   startedAt: number;
   completedAt: number;
   durationSeconds: number;
+  completedLocalDate?: string;
+  startedLocalDate?: string;
+  localStartMinute?: number;
+  timeZoneOffsetMinutes?: number;
 }
 
 export interface TaskStatistics {
@@ -135,6 +146,8 @@ export interface StoredData {
   selectedFocusModeId: string | null;
   manualSettings: Settings;
   sessionEvents: SessionEvent[];
+  focusReviewGoals: FocusReviewGoals;
+  sessionEventLogStartedAt: number;
   theme: ThemeMode;
 }
 
@@ -185,6 +198,8 @@ export type RuntimeMessage =
     }
   | { type: 'SAVE_MANUAL_SETTINGS'; payload: { settings: Settings } }
   | { type: 'SAVE_FOCUS_MUSIC_SETTINGS'; payload: FocusMusicControlCommand }
+  | { type: 'SAVE_FOCUS_REVIEW_GOALS'; payload: FocusReviewGoals }
+  | { type: 'IMPORT_USER_DATA'; payload: { raw: string } }
   | { type: 'SELECT_TASK'; payload: { taskId: string | null } }
   | { type: 'ADD_TASK'; payload: { title: string; select: boolean } }
   | { type: 'UPDATE_TASK'; payload: { taskId: string; title: string } }
@@ -227,6 +242,11 @@ export const DEFAULT_SETTINGS: Settings = {
   focusMusicTrack: 'stream'
 };
 
+export const DEFAULT_FOCUS_REVIEW_GOALS: FocusReviewGoals = {
+  dailySessions: null,
+  weeklySessions: null
+};
+
 export const STORAGE_KEYS = {
   storageVersion: 'storageVersion',
   settings: 'settings',
@@ -237,6 +257,8 @@ export const STORAGE_KEYS = {
   selectedFocusModeId: 'selectedFocusModeId',
   manualSettings: 'manualSettings',
   sessionEvents: 'sessionEvents',
+  focusReviewGoals: 'focusReviewGoals',
+  sessionEventLogStartedAt: 'sessionEventLogStartedAt',
   theme: 'theme',
   migrationBackup: 'migrationBackup'
 } as const;

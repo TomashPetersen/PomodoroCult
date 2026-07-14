@@ -13,8 +13,10 @@ import {
   settingsToFocusModeSnapshot
 } from './focusModes';
 import { getTaskTitle } from './i18n';
+import { normalizeFocusReviewGoals } from './focusReviewGoals';
 import {
   CURRENT_STORAGE_VERSION,
+  DEFAULT_FOCUS_REVIEW_GOALS,
   DEFAULT_SETTINGS,
   DailyStatistics,
   ExportedDataDocument,
@@ -43,6 +45,8 @@ export const defaultTimerState = (settings: Settings = DEFAULT_SETTINGS): TimerS
   targetEndTime: null,
   cycleId: null,
   cycleStartedAt: null,
+  cycleStartedLocalDate: null,
+  cycleLocalStartMinute: null,
   activeCycleSnapshot: null,
   activeTaskId: null,
   completedSessions: 0
@@ -277,6 +281,61 @@ export const normalizeStatistics = (statistics?: Statistics): Statistics => {
   return statistics;
 };
 
+export const MAX_JS_DATE_TIMESTAMP = 8.64e15;
+export const MAX_SESSION_DURATION_SECONDS = 86_400;
+
+const LOCAL_DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export const isValidLocalDateKey = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  const match = LOCAL_DATE_KEY_PATTERN.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+};
+
+export const getLocalStartMinute = (date = new Date()): number =>
+  date.getHours() * 60 + date.getMinutes();
+
+const getOffsetLocalDateKey = (timestamp: number, offsetMinutes: number): string => {
+  const date = new Date(timestamp - offsetMinutes * 60_000);
+  const year = String(date.getUTCFullYear()).padStart(4, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const readOptionalLocalDate = (
+  value: unknown
+): { valid: boolean; value?: string } =>
+  value === undefined
+    ? { valid: true }
+    : isValidLocalDateKey(value)
+      ? { valid: true, value }
+      : { valid: false };
+
+const readOptionalInteger = (
+  value: unknown,
+  min: number,
+  max: number
+): { valid: boolean; value?: number } => {
+  if (value === undefined) return { valid: true };
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? { valid: true, value: parsed }
+    : { valid: false };
+};
+
+const compareOrdinal = (left: string, right: string): number =>
+  left < right ? -1 : left > right ? 1 : 0;
+
 export const normalizeSessionEvents = (sessionEvents?: SessionEvent[]): SessionEvent[] => {
   if (!Array.isArray(sessionEvents)) return [];
 
@@ -291,6 +350,14 @@ export const normalizeSessionEvents = (sessionEvents?: SessionEvent[]): SessionE
     const startedAt = Math.floor(Number(event.startedAt));
     const completedAt = Math.floor(Number(event.completedAt));
     const durationSeconds = Math.floor(Number(event.durationSeconds));
+    const completedLocalDate = readOptionalLocalDate(event.completedLocalDate);
+    const startedLocalDate = readOptionalLocalDate(event.startedLocalDate);
+    const localStartMinute = readOptionalInteger(event.localStartMinute, 0, 1439);
+    const timeZoneOffsetMinutes = readOptionalInteger(
+      event.timeZoneOffsetMinutes,
+      -1440,
+      1440
+    );
 
     if (
       !id ||
@@ -300,8 +367,18 @@ export const normalizeSessionEvents = (sessionEvents?: SessionEvent[]): SessionE
       !Number.isFinite(completedAt) ||
       !Number.isFinite(durationSeconds) ||
       startedAt < 0 ||
+      startedAt > MAX_JS_DATE_TIMESTAMP ||
       completedAt < startedAt ||
-      durationSeconds <= 0
+      completedAt > MAX_JS_DATE_TIMESTAMP ||
+      durationSeconds <= 0 ||
+      durationSeconds > MAX_SESSION_DURATION_SECONDS ||
+      !completedLocalDate.valid ||
+      !startedLocalDate.valid ||
+      !localStartMinute.valid ||
+      !timeZoneOffsetMinutes.valid ||
+      (completedLocalDate.value !== undefined &&
+        timeZoneOffsetMinutes.value !== undefined &&
+        completedLocalDate.value !== getOffsetLocalDateKey(completedAt, timeZoneOffsetMinutes.value))
     ) {
       continue;
     }
@@ -309,22 +386,35 @@ export const normalizeSessionEvents = (sessionEvents?: SessionEvent[]): SessionE
     normalized.push({
       id,
       taskId,
-      taskTitleSnapshot: clampTaskTitle(
-        typeof event.taskTitleSnapshot === 'string' ? event.taskTitleSnapshot : ''
-      ),
+      taskTitleSnapshot:
+        typeof event.taskTitleSnapshot === 'string'
+          ? event.taskTitleSnapshot.slice(0, TASK_TITLE_MAX_LENGTH)
+          : '',
       focusModeId:
         typeof event.focusModeId === 'string' && event.focusModeId.trim()
           ? event.focusModeId.trim()
           : null,
       startedAt,
       completedAt,
-      durationSeconds
+      durationSeconds,
+      ...(completedLocalDate.value !== undefined
+        ? { completedLocalDate: completedLocalDate.value }
+        : {}),
+      ...(startedLocalDate.value !== undefined
+        ? { startedLocalDate: startedLocalDate.value }
+        : {}),
+      ...(localStartMinute.value !== undefined
+        ? { localStartMinute: localStartMinute.value }
+        : {}),
+      ...(timeZoneOffsetMinutes.value !== undefined
+        ? { timeZoneOffsetMinutes: timeZoneOffsetMinutes.value }
+        : {})
     });
     seen.add(id);
   }
 
   return normalized.sort(
-    (left, right) => left.completedAt - right.completedAt || left.id.localeCompare(right.id)
+    (left, right) => left.completedAt - right.completedAt || compareOrdinal(left.id, right.id)
   );
 };
 
@@ -334,6 +424,8 @@ interface CreateSessionEventInput {
   taskTitleSnapshot: string;
   focusModeId: string | null;
   cycleStartedAt: number | null;
+  cycleStartedLocalDate?: string | null;
+  cycleLocalStartMinute?: number | null;
   completedAt: number;
   durationSeconds: number;
 }
@@ -344,11 +436,16 @@ export const createSessionEvent = ({
   taskTitleSnapshot,
   focusModeId,
   cycleStartedAt,
+  cycleStartedLocalDate,
+  cycleLocalStartMinute,
   completedAt,
   durationSeconds
 }: CreateSessionEventInput): SessionEvent => {
   const normalizedCompletedAt = Math.max(0, Math.floor(completedAt));
-  const normalizedDuration = Math.max(1, Math.floor(durationSeconds));
+  const normalizedDuration = Math.min(
+    MAX_SESSION_DURATION_SECONDS,
+    Math.max(1, Math.floor(durationSeconds))
+  );
   const fallbackStartedAt = Math.max(
     0,
     normalizedCompletedAt - normalizedDuration * 1000
@@ -366,6 +463,15 @@ export const createSessionEvent = ({
       ? crypto.randomUUID()
       : `${normalizedCompletedAt}-${Math.random().toString(16).slice(2)}`;
 
+  const completionDate = new Date(normalizedCompletedAt);
+  const capturedStartedLocalDate = isValidLocalDateKey(cycleStartedLocalDate)
+    ? cycleStartedLocalDate
+    : undefined;
+  const capturedLocalStartMinute = Number.isInteger(cycleLocalStartMinute) &&
+    Number(cycleLocalStartMinute) >= 0 && Number(cycleLocalStartMinute) <= 1439
+    ? Number(cycleLocalStartMinute)
+    : undefined;
+
   return {
     id: cycleId ? `session-${cycleId}` : `session-${fallbackId}`,
     taskId,
@@ -373,7 +479,15 @@ export const createSessionEvent = ({
     focusModeId,
     startedAt,
     completedAt: normalizedCompletedAt,
-    durationSeconds: normalizedDuration
+    durationSeconds: normalizedDuration,
+    completedLocalDate: getLocalDateKey(completionDate),
+    timeZoneOffsetMinutes: completionDate.getTimezoneOffset(),
+    ...(capturedStartedLocalDate !== undefined
+      ? { startedLocalDate: capturedStartedLocalDate }
+      : {}),
+    ...(capturedLocalStartMinute !== undefined
+      ? { localStartMinute: capturedLocalStartMinute }
+      : {})
   };
 };
 
@@ -650,7 +764,59 @@ export const setLocal = (value: Partial<PersistedStorage>): Promise<void> =>
     });
   });
 
-export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): StoredData => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isValidEvidenceTimestamp = (value: unknown, now: number): value is number =>
+  Number.isInteger(value) && Number(value) >= 0 && Number(value) <= MAX_JS_DATE_TIMESTAMP &&
+  Number(value) <= now;
+
+const getTrustworthyV3MigrationTimestamp = (
+  backup: MigrationBackup | null | undefined,
+  now: number
+): number | null => {
+  if (
+    !backup ||
+    backup.fromVersion >= 3 ||
+    backup.toVersion !== 3 ||
+    !isValidEvidenceTimestamp(backup.createdAt, now) ||
+    !isRecord(backup.data) ||
+    'sessionEvents' in backup.data
+  ) {
+    return null;
+  }
+  return backup.createdAt;
+};
+
+const getSessionEventLogStartedAt = (
+  stored: Partial<PersistedStorage>,
+  sessionEvents: SessionEvent[],
+  now: number
+): number => {
+  if (
+    getStoredVersion(stored.storageVersion) >= CURRENT_STORAGE_VERSION &&
+    isValidEvidenceTimestamp(stored.sessionEventLogStartedAt, now)
+  ) {
+    return stored.sessionEventLogStartedAt;
+  }
+
+  const migrationTimestamp = getTrustworthyV3MigrationTimestamp(
+    stored.migrationBackup,
+    now
+  );
+  if (migrationTimestamp !== null) return migrationTimestamp;
+
+  const earliestEvent = sessionEvents.reduce<number | null>((earliest, event) => {
+    if (!isValidEvidenceTimestamp(event.completedAt, now)) return earliest;
+    return earliest === null ? event.completedAt : Math.min(earliest, event.completedAt);
+  }, null);
+  return earliestEvent ?? now;
+};
+
+export const normalizeStoredData = (
+  stored: Partial<PersistedStorage> = {},
+  now = Date.now()
+): StoredData => {
   const rawSettings = normalizeSettings(stored.settings);
   const manualSettings = normalizeSettings(stored.manualSettings ?? stored.settings);
   const focusModes = normalizeFocusModes(stored.focusModes);
@@ -721,6 +887,18 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
       stored.timerState.cycleStartedAt >= 0
         ? Math.floor(stored.timerState.cycleStartedAt)
         : null,
+    cycleStartedLocalDate: isReadyNewWork
+      ? null
+      : isValidLocalDateKey(stored.timerState?.cycleStartedLocalDate)
+        ? stored.timerState.cycleStartedLocalDate
+        : null,
+    cycleLocalStartMinute: isReadyNewWork
+      ? null
+      : Number.isInteger(stored.timerState?.cycleLocalStartMinute) &&
+          Number(stored.timerState?.cycleLocalStartMinute) >= 0 &&
+          Number(stored.timerState?.cycleLocalStartMinute) <= 1439
+        ? Number(stored.timerState?.cycleLocalStartMinute)
+        : null,
     activeCycleSnapshot: isReadyNewWork
       ? null
       : normalizeFocusModeSnapshot(stored.timerState?.activeCycleSnapshot, settings) ??
@@ -732,6 +910,8 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     cycleStarted
   };
 
+  const sessionEvents = normalizeSessionEvents(stored.sessionEvents);
+
   return {
     storageVersion: CURRENT_STORAGE_VERSION,
     settings,
@@ -741,32 +921,49 @@ export const normalizeStoredData = (stored: Partial<PersistedStorage> = {}): Sto
     focusModes,
     selectedFocusModeId,
     manualSettings,
-    sessionEvents: normalizeSessionEvents(stored.sessionEvents),
+    sessionEvents,
+    focusReviewGoals: normalizeFocusReviewGoals(
+      stored.focusReviewGoals ?? DEFAULT_FOCUS_REVIEW_GOALS
+    ),
+    sessionEventLogStartedAt: getSessionEventLogStartedAt(stored, sessionEvents, now),
     theme: stored.theme === 'dark' ? 'dark' : 'light'
   };
 };
 
 export const createMigrationBackup = (
   stored: Partial<PersistedStorage>,
-  toVersion = CURRENT_STORAGE_VERSION
+  toVersion = CURRENT_STORAGE_VERSION,
+  createdAt = Date.now()
 ): MigrationBackup => ({
-  createdAt: Date.now(),
+  createdAt,
   fromVersion: getStoredVersion(stored.storageVersion),
   toVersion,
   data: stored
 });
 
 export const migrateStoredData = (
-  stored: Partial<PersistedStorage> = {}
-): { data: StoredData; backup: MigrationBackup | null; migrated: boolean } => {
+  stored: Partial<PersistedStorage> = {},
+  now = Date.now()
+): { data: StoredData; backup: MigrationBackup | null; migrated: boolean; fromVersion: number } => {
   const fromVersion = getStoredVersion(stored.storageVersion);
-  const data = normalizeStoredData(stored);
+  const data = normalizeStoredData(stored, now);
   const migrated = fromVersion < CURRENT_STORAGE_VERSION;
+  const backup = !migrated || stored.migrationBackup
+    ? null
+    : fromVersion === 3
+      ? {
+          createdAt: now,
+          fromVersion: 3,
+          toVersion: CURRENT_STORAGE_VERSION,
+          data: { storageVersion: 3 }
+        }
+      : createMigrationBackup(stored, CURRENT_STORAGE_VERSION, now);
 
   return {
     data,
-    backup: migrated ? createMigrationBackup(stored) : null,
-    migrated
+    backup,
+    migrated,
+    fromVersion
   };
 };
 
@@ -790,6 +987,8 @@ const storedDataKeys = [
   STORAGE_KEYS.selectedFocusModeId,
   STORAGE_KEYS.manualSettings,
   STORAGE_KEYS.sessionEvents,
+  STORAGE_KEYS.focusReviewGoals,
+  STORAGE_KEYS.sessionEventLogStartedAt,
   STORAGE_KEYS.theme
 ] as const;
 
@@ -826,19 +1025,66 @@ const storageValuesEqual = (left: unknown, right: unknown): boolean => {
   );
 };
 
+const storedKeyNeedsRepair = (
+  stored: Partial<PersistedStorage>,
+  data: StoredData,
+  key: (typeof storedDataKeys)[number]
+): boolean => {
+  if (key === STORAGE_KEYS.sessionEvents) {
+    return false;
+  }
+  if (key !== STORAGE_KEYS.timerState || !isRecord(stored.timerState)) {
+    return !storageValuesEqual(stored[key], data[key]);
+  }
+
+  const comparableTimerState = { ...data.timerState } as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(stored.timerState, 'cycleStartedLocalDate')) {
+    delete comparableTimerState.cycleStartedLocalDate;
+  }
+  if (!Object.prototype.hasOwnProperty.call(stored.timerState, 'cycleLocalStartMinute')) {
+    delete comparableTimerState.cycleLocalStartMinute;
+  }
+  return !storageValuesEqual(stored.timerState, comparableTimerState);
+};
+
+const createRepairPatch = (
+  stored: Partial<PersistedStorage>,
+  data: StoredData,
+  exclude = new Set<string>()
+): Partial<PersistedStorage> =>
+  storedDataKeys.reduce<Partial<PersistedStorage>>((result, key) => {
+    if (!exclude.has(key) && storedKeyNeedsRepair(stored, data, key)) {
+      (result as Record<string, unknown>)[key] = data[key];
+    }
+    return result;
+  }, {});
+
 export const initializeStorageWithAdapter = async (
-  adapter: StorageInitializationAdapter
+  adapter: StorageInitializationAdapter,
+  now = Date.now()
 ): Promise<StoredData> => {
   const stored = await adapter.read();
-  const { data, backup } = migrateStoredData(stored);
-  const patch: Partial<PersistedStorage> = backup
-    ? { ...data, migrationBackup: backup }
-    : storedDataKeys.reduce<Partial<PersistedStorage>>((result, key) => {
-        if (!storageValuesEqual(stored[key], data[key])) {
-          (result as Record<string, unknown>)[key] = data[key];
-        }
-        return result;
-      }, {});
+  const { data, backup, migrated, fromVersion } = migrateStoredData(stored, now);
+  const patch: Partial<PersistedStorage> = migrated && fromVersion === 3
+    ? {
+        ...createRepairPatch(
+          stored,
+          data,
+          new Set([
+            STORAGE_KEYS.storageVersion,
+            STORAGE_KEYS.sessionEvents,
+            STORAGE_KEYS.focusReviewGoals,
+            STORAGE_KEYS.sessionEventLogStartedAt
+          ])
+        ),
+        storageVersion: CURRENT_STORAGE_VERSION,
+        focusReviewGoals: data.focusReviewGoals,
+        sessionEventLogStartedAt: data.sessionEventLogStartedAt,
+        ...(backup ? { migrationBackup: backup } : {})
+      }
+    : backup
+      ? { ...data, migrationBackup: backup }
+    : createRepairPatch(stored, data);
 
   if (Object.keys(patch).length > 0) {
     await adapter.write(patch);
@@ -869,9 +1115,6 @@ export const createExportDocument = async (): Promise<ExportedDataDocument> => {
   };
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
 const hasImportableStorageKey = (value: Record<string, unknown>): boolean =>
   'settings' in value ||
   'tasks' in value ||
@@ -881,9 +1124,11 @@ const hasImportableStorageKey = (value: Record<string, unknown>): boolean =>
   'selectedFocusModeId' in value ||
   'manualSettings' in value ||
   'sessionEvents' in value ||
+  'focusReviewGoals' in value ||
+  'sessionEventLogStartedAt' in value ||
   'theme' in value;
 
-export const parseExportDocument = (raw: string): StoredData => {
+export const parseExportDocument = (raw: string, now = Date.now()): StoredData => {
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed)) {
     throw new Error('Invalid backup format.');
@@ -899,7 +1144,7 @@ export const parseExportDocument = (raw: string): StoredData => {
     throw new Error('Invalid backup format.');
   }
 
-  const data = normalizeStoredData(candidate as Partial<PersistedStorage>);
+  const data = normalizeStoredData(candidate as Partial<PersistedStorage>, now);
 
   return {
     ...data,
@@ -907,13 +1152,26 @@ export const parseExportDocument = (raw: string): StoredData => {
   };
 };
 
-export const importStoredData = async (raw: string): Promise<StoredData> => {
-  const current = await getLocal<Partial<PersistedStorage>>();
-  const backup = createMigrationBackup(current, CURRENT_STORAGE_VERSION);
-  const data = parseExportDocument(raw);
-  await setLocal({ ...data, migrationBackup: backup });
+export const importStoredDataWithAdapter = async (
+  raw: string,
+  adapter: StorageInitializationAdapter,
+  now = Date.now()
+): Promise<StoredData> => {
+  const data = parseExportDocument(raw, now);
+  const current = await adapter.read();
+  const backup = createMigrationBackup(current, CURRENT_STORAGE_VERSION, now);
+  await adapter.write({ ...data, migrationBackup: backup });
   return data;
 };
+
+export const importStoredData = async (raw: string): Promise<StoredData> =>
+  importStoredDataWithAdapter(
+    raw,
+    {
+      read: () => getLocal<Partial<PersistedStorage>>(),
+      write: setLocal
+    }
+  );
 
 export const applyThemeClass = (theme: ThemeMode): void => {
   if (typeof document === 'undefined') return;

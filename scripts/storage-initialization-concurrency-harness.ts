@@ -72,7 +72,7 @@ const initialize = (storage: MemoryStorage): Promise<StoredData> =>
   initializeStorageWithAdapter({ read: storage.read, write: storage.write });
 
 const currentStorageNeedingRepair = (): Partial<PersistedStorage> => {
-  const data = normalizeStoredData({ storageVersion: 3 });
+  const data = normalizeStoredData({ storageVersion: 4 });
   const repairable = clone(data) as Partial<PersistedStorage>;
   delete repairable.manualSettings;
   return repairable;
@@ -266,7 +266,7 @@ const simultaneousEnsures = async (): Promise<void> => {
   const second = queue.enqueue(() => initialize(storage));
   gate.release();
   await Promise.all([first, second]);
-  assert(storage.normalized().storageVersion === 3, 'parallel ensure did not normalize storage');
+  assert(storage.normalized().storageVersion === 4, 'parallel ensure did not normalize storage');
   assert(storage.writes.filter((patch) => patch.migrationBackup).length === 1, 'parallel ensure created extra backups');
   assert(storage.writes.length === 1, 'idempotent second ensure wrote storage');
 };
