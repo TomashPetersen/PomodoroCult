@@ -30,9 +30,9 @@ Completed foundations:
 
 Not implemented yet:
 
-- Focus Review, goals, reports, feature gates, donations, payments, entitlement state, licensing, or Android adaptation.
+- Feature gates, donations, payments, entitlement state, licensing, Android adaptation, PDF, accounts, telemetry, cloud sync, or external APIs.
 
-The next implementation phase is Focus Review. The shipped Focus Modes behavior remains ungated while the product model is validated before any future Free/Pro boundary is approved.
+The active implementation phase is final Phase 3 verification. Phase 4 feature gates must not begin until packaged runtime, visual/accessibility, documentation, and independent QA gates close.
 
 ## Tiers
 
@@ -40,8 +40,8 @@ The next implementation phase is Focus Review. The shipped Focus Modes behavior 
 | --- | --- | --- | --- |
 | Timer | Work, break, rest, pause, stop, skip short break, auto-start breaks | Same | Per-task custom cycles, multiple saved focus presets |
 | Tasks | Create, select, edit, archive, delete, local history | Same | Task templates, recurring plans, task goals |
-| Statistics | Local list, activity chart, task totals | Same | Weekly review, streaks, trend comparison, task insights |
-| Data | Local storage, JSON import/export | Same | CSV and Markdown reports, scheduled backup reminders |
+| Statistics | Local list/chart/task totals plus Focus Review, comparisons, streaks, goals, and task insights | Same | Future analytics beyond the shipped Phase 3 contract only after a separately approved boundary |
+| Data | Local storage, JSON import/export, CSV session export, Markdown weekly review | Same | Scheduled backup reminders or future report formats after separate validation |
 | Focus music | Built-in stream, birds, clock loops | Same | Extra sound packs and focus scenes |
 | Themes | Light/dark/system | Same | Extra themes and fullscreen focus layouts |
 | Sync | None | None | Later only with account/licensing infrastructure |
@@ -110,15 +110,12 @@ Avoid for the first monetization phase:
 
 The first paid layer should focus on features that do not require accounts:
 
-1. Advanced local analytics:
-   - weekly review;
-   - focus streaks;
-   - best days and best tasks;
-   - task comparison;
-   - goals by day or week.
+1. Advanced local analytics beyond the free Phase 3 Review:
+   - longer-term planning/coaching views that do not relabel existing free metrics;
+   - optional future insights only after adequate data and user validation.
 
 2. Export and reporting:
-   - CSV export;
+   - scheduled or bundled reporting beyond the free CSV and Markdown exports;
    - PDF weekly summary;
    - task-level report.
 
@@ -175,7 +172,7 @@ Initial built-in modes:
 
 Phase 2 intentionally gives every user unlimited custom modes and task binding. A possible future count boundary is only a monetization hypothesis and must not be treated as shipped behavior. A task profile is not a separate product: it is only an optional `focusModeId` on a task. This prevents duplicated settings and keeps the task editor simple.
 
-### 2. Focus Review Pro
+### 2. Focus Review (shipped ungated in Phase 3)
 
 Focus Review turns existing local statistics into a short, actionable review:
 
@@ -189,7 +186,7 @@ Focus Review turns existing local statistics into a short, actionable review:
 
 Do not ship speculative labels such as `overload` or `task drift` in the first version. They require richer event history and can sound judgmental. The review must show `Not enough data yet` instead of inventing an insight from one or two sessions.
 
-### 3. Reports Pro
+### 3. Reports (CSV and Markdown shipped ungated in Phase 3)
 
 Reports support Focus Review but are not a flagship feature:
 
@@ -219,10 +216,8 @@ Free remains a complete local Pomodoro application:
 
 Pro adds depth and reuse:
 
-- Focus Review and period comparison;
-- goals and streaks;
-- CSV and Markdown reports;
 - future extra sound/theme packs.
+- future planning, templates, or reporting capabilities that do not remove or relabel Phase 3 Review, goals, CSV, or Markdown.
 
 Existing free capabilities must never become locked after an update.
 
@@ -250,21 +245,23 @@ Pomofocus publicly combines templates, custom timer settings, alarm/background s
 1. Completed: stabilize free runtime and background focus music (`b7d2efa`).
 2. Completed: add storage v3 and migrations for `FocusMode`, `task.focusModeId`, cycle identity, and SessionEvents without UI gates (`1a651de`).
 3. Completed: implement the ungated Focus Modes selector/editor, task binding, active-cycle snapshots, deletion fallback, and responsive/accessibility verification.
-4. Build Focus Review from session events with explicit data thresholds.
-5. Add feature flags and a developer-only entitlement simulator.
-6. Implement CSV and Markdown reports.
+4. Completed: build ungated Focus Review and global goals from SessionEvents with explicit coverage and sparse-data thresholds (`f867040`, `91aa160`).
+5. Complete and independently verify the ungated CSV and Markdown report milestone.
+6. Add feature flags and a developer-only entitlement simulator only in a separately authorized Phase 4.
 7. Select and verify the external payment/licensing route.
 8. Enable Pro gates only after offline behavior, downgrade behavior, restore/import, and AMO disclosures pass QA.
 
-## Recommended First Commercial Release
+## Free Validation Baseline Before Any Commercial Release
 
-The current commercial hypothesis, to revisit only after ungated validation, is:
+The shipped/implemented ungated baseline is:
 
 - unlimited Focus Modes;
 - task-to-mode binding;
 - weekly Focus Review with previous-period comparison;
 - daily/weekly goals;
 - CSV and Markdown reports.
+
+These capabilities are not a commercial bundle and must not be gated or marketed as paid after Phase 3. A later commercial proposal must be additive and separately approved.
 
 Do not make extra sounds the headline and do not begin with cloud sync. Sounds enrich Focus Modes; sync changes the entire security, privacy, account, and support model.
 
@@ -335,12 +332,14 @@ Android-specific decisions still needed:
 Implementation is now governed by `EXECPLAN-v1.2.0.md`.
 
 1. Keep the implemented Focus Modes UI ungated and validate real usage before defining limits.
-2. Add Focus Review with explicit data thresholds; goals and reports remain later phases.
-3. Revisit the Free/Pro boundary only after Focus Modes and Focus Review behavior are stable.
-4. Add centralized feature gates only after the ungated product behavior is stable.
+2. Complete packaged runtime, visual, accessibility, and independent QA for ungated Phase 3 Review, goals, CSV, and Markdown.
+3. Revisit the Free/Pro boundary only after Focus Modes and Focus Review behavior are stable; do not reclassify shipped Phase 3 capabilities.
+4. Add centralized feature gates only in a separately authorized Phase 4 after the ungated product behavior is stable.
 5. Deploy project-controlled support and Pro information pages.
 6. Complete provider KYC, international purchase, refund, and Russian payout tests.
 7. Implement the external Lifetime Pro licensing service and activation flow.
 8. Update AMO/privacy disclosures and enable monetization only after QA and operational gates pass.
 
 2026-07-12 note: Updated implementation status after ungated Phase 2. Focus Modes selector/editor, custom CRUD, task binding, snapshots, deletion cleanup, bilingual UI, and popup/app synchronization are implemented and verified; all monetization behavior remains unimplemented.
+
+2026-07-15 note: Reconciled the roadmap with the Phase 3 source of truth. Focus Review, global daily/weekly goals, CSV, and Markdown are implemented as free ungated local capabilities; older Pro-candidate and deferred-goal/report labels are superseded. Monetization, feature gates, licensing, donations, payments, Android, PDF, telemetry, accounts, and cloud work remain unimplemented.

@@ -100,6 +100,7 @@ export interface FocusReviewInput {
   focusReviewGoals: Readonly<FocusReviewGoals>;
   sessionEventLogStartedAt: number;
   range: Readonly<ReviewDateRange>;
+  previousRange?: Readonly<ReviewDateRange>;
   now?: number;
 }
 
@@ -511,7 +512,10 @@ export const calculateFocusReview = (input: Readonly<FocusReviewInput>): FocusRe
   }
   validateInputRange(input.range, now);
 
-  const previousRange = getPreviousReviewRange(input.range);
+  const previousRange = input.previousRange
+    ? { ...input.previousRange }
+    : getPreviousReviewRange(input.range);
+  validateInputRange(previousRange, now);
   const resolved: ResolvedReviewEvent[] = [];
   const seenIds = new Set<string>();
   for (const event of input.sessionEvents) {

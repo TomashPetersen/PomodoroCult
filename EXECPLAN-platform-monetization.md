@@ -37,6 +37,7 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - [x] 2026-07-13 22:28 +04:00: Packaged Firefox live-audio smoke and six-screenshot popup/app visual coverage now pass after isolating QA profile/process-tree issues; exact-once completion and one chime were directly observed.
 - [x] 2026-07-13 22:35 +04:00: QA-Agent independently repeated the diff/harness/static/build review, audited production runtime hashes and all six screenshots, and returned `APPROVE`. Headless native notification observation and optional Firefox lint remain documented non-blocking limitations rather than claimed PASS.
 - [x] 2026-07-13 22:35 +04:00: Packaged Firefox audio/runtime, visual comparison, and independent QA close the Focus Music blocker; Phase 3 remains unstarted pending this isolated commit.
+- [x] 2026-07-15 00:14 +04:00: Phase 3 storage v4, event-only Review analytics, global goals, CSV, and Markdown are implemented as free ungated local capabilities. Storage and analytics commits have independent QA approval; report and final packaged/visual gates remain pending.
 - [ ] Free/Supporter/Pro feature matrix approved.
 - [ ] Donation provider and public URL selected and manually verified from the developer's jurisdiction.
 - [ ] Android device/emulator smoke test completed.
@@ -78,7 +79,7 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 - Do not put existing free features behind a paywall. Free must keep timer, tasks, local statistics, import/export, and basic focus music.
 - Product data and ungated UI may be validated before a payment route exists. Real feature gates, purchase copy, and licensing remain blocked on an approved Free/Pro boundary and operational payment plan.
 - Market `Focus Modes` as one capability. Templates are saved modes; per-task profiles only bind a task to a mode; sound packs are mode ingredients rather than separate flagship products.
-- Reports are a supporting utility, not the main reason to buy Pro. CSV and Markdown come after Focus Modes and Focus Review.
+- Phase 3 Focus Review, global goals, CSV, and Markdown are ungated Free capabilities. Any future Pro reporting must be additive and cannot relabel or remove these shipped local tools.
 - Do not introduce analytics by default. If monetization later needs licensing, store only the minimum required license state and document it.
 - Focus Modes UI is implemented without payment, entitlement, or feature-gate logic. Keep it ungated while product behavior is validated; do not define paid limits in this phase.
 - Treat background readiness as the storage ownership boundary on both Chrome and Firefox: startup/install/readiness queue initialization and recovery, while UI surfaces only read after a successful readiness response. This integrity fix does not change schema, permissions, layout, or monetization scope.
@@ -88,7 +89,7 @@ Mozilla's Android guidance makes this a compatibility project, not just a checkb
 
 ## Outcomes & Retrospective
 
-The roadmap has the Phase 0 and Phase 1 foundations plus the Phase 2 Focus Mode feature commit. The post-commit storage initialization integrity finding is closed. The Focus Music remediation has deterministic/static/build, packaged Firefox audio, exact-once completion, chime, visual, and independent QA `APPROVE` evidence, so Phase 2 is complete once the isolated fix commit is created. Optional lint and direct native-notification observability remain non-blocking limits. Focus Review, Android, donations, real Pro gates, and licensing remain unstarted.
+Phases 0-2 and their storage-integrity/audio remediations are complete. Phase 3 now implements storage v4, honest event-log coverage, captured local-time facts, event-only Focus Review, global goals, and secure local CSV/Markdown generation without gates, permissions, dependencies, network calls, or monetization. Storage and analytics milestones are committed with independent approval; reports and final packaged runtime/visual/accessibility QA remain open. Android, donations, real Pro gates, payments, and licensing remain unstarted.
 
 ## Context and Orientation
 
@@ -132,8 +133,8 @@ Define the tiers before mobile adaptation:
 | --- | --- | --- | --- |
 | Timer | Work, short break, long rest, auto-start, skip short break | Same | Per-task custom cycles, named focus plans |
 | Tasks | Active/archive/delete, task selection, local history | Same | Templates, recurring plans, task goals |
-| Statistics | Local list, chart, task totals | Same | Weekly review, trends, streaks, comparisons |
-| Data | Local storage, import/export backup | Same | CSV and Markdown reports; later sync only if account infrastructure exists |
+| Statistics | Local list/chart/task totals plus ungated Phase 3 Review, trends, streaks, goals, and comparisons | Same | Future additive analytics only after a separately approved boundary |
+| Data | Local storage, JSON backup/import, CSV session export, Markdown weekly review | Same | Scheduled backup or later sync only after separate infrastructure and approval |
 | Focus environment | Built-in basic sound loops, themes | Same, plus optional thank-you state if desired | Extra sound packs, richer focus scenes, advanced themes |
 | Platform | Firefox desktop first | Same | Later cross-device features only after licensing/account decisions |
 
@@ -405,3 +406,5 @@ Revision note 2026-07-13 21:14 +04:00: Recorded the QA-discovered stale full-pay
 Revision note 2026-07-13 22:28 +04:00: Recorded packaged Firefox live-audio/exact-once/chime PASS and six inspected screenshots after fixing external QA profile/process-tree ownership. Kept Phase 2 and the commit pending final independent QA, with native notification observation and optional lint documented honestly.
 
 Revision note 2026-07-13 22:35 +04:00: Recorded final independent QA-Agent `APPROVE`, closed the Phase 2 Focus Music blocker, superseded stale pending entries, and retained native headless-notification observation plus unavailable optional lint as non-blocking residuals. Phase 3 and monetization remain unstarted.
+
+Revision note 2026-07-15 00:14 +04:00: Reconciled this platform roadmap with implemented Phase 3. Review, goals, CSV, and Markdown are free ungated local features; storage and analytics milestones are approved, while report and final packaged/visual gates remain pending. No monetization, permission, payment, licensing, account, telemetry, cloud, or Android work was introduced.

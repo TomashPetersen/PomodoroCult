@@ -35,7 +35,7 @@ Required permission:
 Data handling:
 
 - all extension data is stored locally in browser extension storage
-- storage version 3 adds local Focus Mode definitions, optional task-to-mode references, timer cycle identity, and timestamped events for newly completed Work sessions
+- storage version 4 contains local Focus Mode definitions, optional task-to-mode references, timer cycle identity, timestamped events for newly completed Work sessions, global Review goals, and an honest event-log coverage boundary
 - legacy aggregate statistics are preserved and are not expanded into fabricated timestamped events
 - JSON backup/import includes Focus Modes and SessionEvents; imported timers are restored to a safe idle state
 - Focus Mode global/manual selection, custom modes, and optional task bindings remain local and are included in JSON backup/import
@@ -44,12 +44,23 @@ Data handling:
 - no remote backend
 - no telemetry
 
+Focus Review and report notes:
+
+- Focus Review, daily/weekly goals, CSV, and Markdown are free and ungated
+- timestamped metrics use only real normalized SessionEvents; legacy aggregates remain visible in the existing list/chart and are never double-counted
+- new events capture local completion/start context; legacy events without it remain valid and are disclosed as inferred
+- CSV contains selected real sessions only, quotes every field, adds a UTF-8 BOM, and neutralizes spreadsheet formulas in imported/user strings
+- Markdown covers the current Monday-to-Sunday week through today and escapes task text so it cannot create report structure, links, code, or HTML
+- both downloads are generated from local data after a user click using Blob URLs; there is no report server or network request
+- JSON import is processed by the background queue, restores safe idle, and does not start Focus Music
+
 Current monetization status:
 
 - Focus Modes selector, custom-mode editor, and task binding are available as free ungated local features
 - no Focus Mode count limit or task-binding paywall is present
 - no donation URL is enabled
 - no Pro feature gate, entitlement, license key, payment request, or licensing server is present
+- no Phase 3 feature limit or report paywall is present
 
 Support contact:
 

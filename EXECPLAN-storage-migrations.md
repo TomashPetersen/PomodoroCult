@@ -32,6 +32,7 @@ This plan adds a storage schema version, safe migration path, automatic backup b
 - [x] 2026-07-14 23:32 +04:00: Added storage v4 global Review goals, event-log coverage, cycle/event local-time metadata, and background-queued goal/import ownership without a permission, dependency, manifest, or application-version change.
 - [x] 2026-07-14 23:43 +04:00: Verified quota-safe v3-to-v4 migration, exact minimal recovery evidence, idempotence, write-failure rollback, captured metadata, forged pre-v4 coverage rejection, goal normalization, JSON round-trip, and completion/goal/import serialization in the Phase 3 foundation harness.
 - [x] 2026-07-14 23:46 +04:00: QA-Agent independently repeated all four harnesses, diff check, TypeScript, and both production builds, then approved the isolated storage/runtime milestone. Packaged runtime remains a final Phase 3 gate.
+- [x] 2026-07-15 00:14 +04:00: CSV and Markdown consume immutable event/goal/coverage snapshots without storage writes, retention, aggregation replacement, licensing data, or network access. JSON remains the only full backup/import format.
 
 ## Surprises & Discoveries
 
@@ -216,3 +217,5 @@ No new npm dependencies. Import/export uses browser file APIs and JSON.
 2026-07-14 23:43 +04:00 note: Tightened coverage to ignore persisted pre-v4 fields and expanded deterministic import/completion ordering evidence after independent QA review. Repeated all storage, regression, static, and production-build gates; final milestone approval remains pending.
 
 2026-07-14 23:46 +04:00 note: Recorded independent QA-Agent `APPROVE` after all four harnesses, diff check, TypeScript, and both production builds passed again. The isolated storage/runtime milestone is ready to commit; packaged runtime remains in the final Phase 3 gate.
+
+2026-07-15 00:14 +04:00 note: Recorded that Phase 3 CSV/Markdown are read-only views of one normalized snapshot and do not alter the v4 migration, backup, import, retention, or quota contracts. Report QA and final packaged runtime remain pending.

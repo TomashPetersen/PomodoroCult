@@ -3,6 +3,8 @@ import {
   Calendar,
   Check,
   Clock3,
+  FileDown,
+  FileText,
   HelpCircle,
   Maximize2,
   Minimize2,
@@ -20,6 +22,11 @@ import {
   ReviewGoalProgress
 } from '../lib/focusReview';
 import { formatHoursMinutesLabel } from '../lib/format';
+import {
+  buildFocusReviewCsv,
+  buildWeeklyFocusReviewMarkdown,
+  downloadLocalTextReport
+} from '../lib/focusReports';
 import { getStatsPeriodLabel } from '../lib/i18n';
 import { cn } from '../lib/ui';
 import { useAppStore } from '../store/useAppStore';
@@ -66,6 +73,12 @@ const copy = {
     previousShare: 'previous share',
     percentagePoints: 'pp',
     noDistribution: 'No event-derived task data in this range.',
+    reports: 'Local reports',
+    csv: 'Download session CSV',
+    markdown: 'Download weekly Markdown',
+    csvReady: 'CSV report created.',
+    markdownReady: 'Weekly Markdown report created.',
+    reportError: 'Could not create the report. Try again.',
     bestWindow: 'Best two-hour window',
     needsSessions: 'Needs 10 sessions; currently {count}.',
     needsDates: 'Needs 4 start dates; currently {count}.',
@@ -113,6 +126,12 @@ const copy = {
     previousShare: 'доля ранее',
     percentagePoints: 'п.п.',
     noDistribution: 'В этом диапазоне нет событийных данных по задачам.',
+    reports: 'Локальные отчёты',
+    csv: 'Скачать CSV сессий',
+    markdown: 'Скачать недельный Markdown',
+    csvReady: 'CSV-отчёт создан.',
+    markdownReady: 'Недельный Markdown-отчёт создан.',
+    reportError: 'Не удалось создать отчёт. Повторите попытку.',
     bestWindow: 'Лучшее двухчасовое окно',
     needsSessions: 'Нужно 10 сессий; сейчас {count}.',
     needsDates: 'Нужно 4 даты старта; сейчас {count}.',
@@ -223,6 +242,8 @@ export const FocusReviewScreen = ({
   const [weeklyGoal, setWeeklyGoal] = useState(focusReviewGoals.weeklySessions?.toString() ?? '');
   const [goalMessage, setGoalMessage] = useState<string | null>(null);
   const [goalError, setGoalError] = useState<string | null>(null);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     setDailyGoal(focusReviewGoals.dailySessions?.toString() ?? '');
@@ -277,6 +298,35 @@ export const FocusReviewScreen = ({
 
   const result = calculated.result;
   const cardClass = 'rounded-2xl border border-zinc-200 bg-[#fcfcfb] p-4 shadow-sm dark:border-zinc-800 dark:bg-[#161b22]';
+
+  const handleCsvDownload = () => {
+    if (!result) return;
+    try {
+      downloadLocalTextReport(buildFocusReviewCsv(result));
+      setReportError(null);
+      setReportMessage(labels.csvReady);
+    } catch {
+      setReportMessage(null);
+      setReportError(labels.reportError);
+    }
+  };
+
+  const handleMarkdownDownload = () => {
+    try {
+      const snapshot = {
+        sessionEvents: sessionEvents.map((event) => ({ ...event })),
+        focusReviewGoals: { ...focusReviewGoals },
+        sessionEventLogStartedAt,
+        now: Date.now()
+      };
+      downloadLocalTextReport(buildWeeklyFocusReviewMarkdown(snapshot, locale));
+      setReportError(null);
+      setReportMessage(labels.markdownReady);
+    } catch {
+      setReportMessage(null);
+      setReportError(labels.reportError);
+    }
+  };
 
   return (
     <main className="flex h-full w-full flex-col overflow-hidden p-4">
@@ -529,6 +579,36 @@ export const FocusReviewScreen = ({
                     </div>
                   ))}
                 </div>
+              )}
+            </section>
+
+            <section className={cardClass} aria-labelledby="review-reports-heading">
+              <h2 id="review-reports-heading" className="text-base font-semibold">{labels.reports}</h2>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleCsvDownload}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                >
+                  <FileDown className="h-4 w-4" />
+                  {labels.csv}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMarkdownDownload}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <FileText className="h-4 w-4" />
+                  {labels.markdown}
+                </button>
+              </div>
+              {(reportError || reportMessage) && (
+                <p role={reportError ? 'alert' : 'status'} className={cn(
+                  'mt-3 text-sm',
+                  reportError ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'
+                )}>
+                  {reportError ?? reportMessage}
+                </p>
               )}
             </section>
 

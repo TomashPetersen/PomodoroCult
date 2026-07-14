@@ -11,6 +11,12 @@ import {
   parseLocalDateOrdinal,
   ReviewDateRange
 } from '../src/lib/focusReview';
+import {
+  buildFocusReviewCsv,
+  buildWeeklyFocusReviewMarkdown,
+  escapeMarkdownText,
+  neutralizeSpreadsheetString
+} from '../src/lib/focusReports';
 import { createSerializedOperationQueue } from '../src/lib/operationQueue';
 import {
   createSessionEvent,
@@ -567,6 +573,113 @@ const malformedReview = review([
 assert(malformedReview.events.length === 1 && malformedReview.events[0].durationSeconds === 1_500,
   'malformed/future events survived or duplicate id was not first-valid-wins');
 
+const csvSecurityEvents = [
+  {
+    ...makeReviewEvent({
+      id: '=HYPERLINK("https://example.invalid")',
+      completedDate: '2026-07-14',
+      taskId: '+CMD',
+      title: '"quoted", comma,value\nmultiline Русский'
+    }),
+    focusModeId: '@SUM(A1:A2)'
+  },
+  {
+    ...makeReviewEvent({
+      id: '-1+1',
+      completedDate: '2026-07-13',
+      taskId: '\t=BAD',
+      title: '  =leading formula'
+    }),
+    focusModeId: 'safe-mode'
+  }
+];
+const csvReport = buildFocusReviewCsv(review(csvSecurityEvents));
+assert(csvReport.content.startsWith('\uFEFF"id","startedAt","completedAt"'),
+  'CSV BOM or stable quoted English headers were missing');
+assert(csvReport.content.endsWith('\r\n') && !/(^|[^\r])\n/.test(
+  csvReport.content.replace('multiline Русский', 'multiline Русский').replace('\nmultiline', 'multiline')
+), 'CSV record separators were not CRLF');
+assert(csvReport.content.includes('"\'=HYPERLINK(""https://example.invalid"")"'),
+  'CSV id formula injection was not neutralized and escaped');
+assert(csvReport.content.includes('"\'+CMD"') && csvReport.content.includes('"\'\t=BAD"'),
+  'CSV task id formula/control injection was not neutralized');
+assert(csvReport.content.includes('"\'  =leading formula"'),
+  'CSV formula after whitespace was not neutralized');
+assert(csvReport.content.includes('"\'@SUM(A1:A2)"'),
+  'CSV focus mode formula injection was not neutralized');
+assert(csvReport.content.includes('"""quoted"", comma,value\nmultiline Русский"'),
+  'CSV did not preserve quotes, comma, multiline, or Russian text');
+assert(neutralizeSpreadsheetString('+CMD') === "'+CMD" &&
+  neutralizeSpreadsheetString('-1+1') === "'-1+1" &&
+  neutralizeSpreadsheetString('@SUM(...)') === "'@SUM(...)" &&
+  neutralizeSpreadsheetString('\rvalue') === "'\rvalue" &&
+  neutralizeSpreadsheetString('\u0085=CMD') === "'\u0085=CMD",
+  'spreadsheet-string neutralizer missed a required dangerous prefix');
+
+const deterministicCsv = buildFocusReviewCsv(review([
+  { ...makeReviewEvent({ id: 'b', completedDate: '2026-07-14' }), completedAt: reviewNow - 10 },
+  { ...makeReviewEvent({ id: 'a', completedDate: '2026-07-14' }), completedAt: reviewNow - 10 }
+]));
+assert(deterministicCsv.content.indexOf('"a"') < deterministicCsv.content.indexOf('"b"'),
+  'CSV equal-completion ordering was not stable-id ascending');
+
+const adversarialMarkdownTitle =
+  '# heading\n- list | `code` <img> [link](url) ![image](x) **bold** \\ end Русский';
+const markdownSecurityEvents = [
+  makeReviewEvent({ id: 'md-1', completedDate: '2026-07-13', taskId: 'task-z', title: adversarialMarkdownTitle }),
+  makeReviewEvent({ id: 'md-2', completedDate: '2026-07-14', taskId: 'task-z', title: adversarialMarkdownTitle }),
+  makeReviewEvent({ id: 'md-3', completedDate: '2026-07-14', taskId: 'task-z', title: adversarialMarkdownTitle }),
+  makeReviewEvent({ id: 'md-beta', completedDate: '2026-07-14', taskId: 'task-b', title: 'Beta' }),
+  makeReviewEvent({ id: 'md-alpha', completedDate: '2026-07-14', taskId: 'task-a', title: 'Alpha' })
+];
+const markdownReport = buildWeeklyFocusReviewMarkdown({
+  sessionEvents: markdownSecurityEvents,
+  focusReviewGoals: { dailySessions: 2, weeklySessions: 5 },
+  sessionEventLogStartedAt: fullCoverageStartedAt,
+  now: reviewNow
+}, 'en');
+const escapedAdversarialTitle = escapeMarkdownText(adversarialMarkdownTitle);
+assert(markdownReport.content.includes(escapedAdversarialTitle),
+  'Markdown report did not use the shared escaping contract');
+assert(!markdownReport.content.includes('<img>') &&
+  !markdownReport.content.includes('[link](url)') &&
+  !markdownReport.content.includes('![image](x)') &&
+  !markdownReport.content.includes('\n- list |'),
+  'Markdown user text created HTML, links/images, lists, or table structure');
+assert(escapeMarkdownText('\u0085- list') === '\\- list',
+  'Markdown escaping preserved a C1 control that can create a new line');
+assert(markdownReport.content.indexOf('Alpha') < markdownReport.content.indexOf('Beta'),
+  'Markdown equal task ordering was not stable-id ascending');
+assert(markdownReport.content.includes('Calendar week:** 2026-07-13 — 2026-07-19') &&
+  markdownReport.content.includes('Data through:** 2026-07-14'),
+  'Markdown did not label full week and week-to-date separately');
+const russianMarkdownReport = buildWeeklyFocusReviewMarkdown({
+  sessionEvents: markdownSecurityEvents,
+  focusReviewGoals: { dailySessions: 2, weeklySessions: 5 },
+  sessionEventLogStartedAt: fullCoverageStartedAt,
+  now: reviewNow
+}, 'ru');
+assert(russianMarkdownReport.content.includes('покрытие периода: полное') &&
+  !russianMarkdownReport.content.includes('состояние периода: full'),
+  'Russian Markdown exposed a raw English coverage enum');
+
+const weeklyComparisonReport = buildWeeklyFocusReviewMarkdown({
+  sessionEvents: [
+    makeReviewEvent({ id: 'weekly-current-1', completedDate: '2026-07-13' }),
+    makeReviewEvent({ id: 'weekly-current-2', completedDate: '2026-07-14' }),
+    makeReviewEvent({ id: 'weekly-prior-1', completedDate: '2026-07-06' }),
+    ...Array.from({ length: 10 }, (_, index) => makeReviewEvent({
+      id: `wrong-adjacent-${index}`,
+      completedDate: index % 2 === 0 ? '2026-07-11' : '2026-07-12'
+    }))
+  ],
+  focusReviewGoals: { dailySessions: null, weeklySessions: null },
+  sessionEventLogStartedAt: fullCoverageStartedAt,
+  now: reviewNow
+}, 'en');
+assert(weeklyComparisonReport.content.includes('+100% vs. the equal part of last week'),
+  'Markdown compared with the adjacent weekend instead of corresponding prior-week weekdays');
+
 const benchmarkReview = (count: number) => {
   const events = Array.from({ length: count }, (_, index) => makeReviewEvent({
     id: `benchmark-${String(index).padStart(5, '0')}`,
@@ -580,18 +693,31 @@ const benchmarkReview = (count: number) => {
   const startedAt = performance.now();
   const result = review(events, { range: { start: '2026-07-01', end: '2026-07-14' } });
   const elapsedMs = performance.now() - startedAt;
+  const reportsStartedAt = performance.now();
+  const csv = buildFocusReviewCsv(result);
+  const markdown = buildWeeklyFocusReviewMarkdown({
+    sessionEvents: events,
+    focusReviewGoals: { dailySessions: 4, weeklySessions: 20 },
+    sessionEventLogStartedAt: fullCoverageStartedAt,
+    now: reviewNow
+  }, 'en');
+  const reportsElapsedMs = performance.now() - reportsStartedAt;
   const bytes = new TextEncoder().encode(JSON.stringify(events)).length;
+  const reportBytes = new TextEncoder().encode(csv.content).length +
+    new TextEncoder().encode(markdown.content).length;
   assert(result.totals.sessions === count, `${count}-event Review lost events`);
   assert(result.taskDistribution.length === 500, `${count}-event Review lost task groups`);
-  return { count, elapsedMs, bytes };
+  return { count, elapsedMs, bytes, reportsElapsedMs, reportBytes };
 };
 
 const benchmark10k = benchmarkReview(10_000);
 const benchmark50k = benchmarkReview(50_000);
 console.log(
   `Focus Review benchmark: ${benchmark10k.count} events, ${benchmark10k.bytes} bytes, ` +
-  `${benchmark10k.elapsedMs.toFixed(1)} ms; ${benchmark50k.count} events, ` +
-  `${benchmark50k.bytes} bytes, ${benchmark50k.elapsedMs.toFixed(1)} ms`
+  `${benchmark10k.elapsedMs.toFixed(1)} ms analytics, ${benchmark10k.reportBytes} report bytes, ` +
+  `${benchmark10k.reportsElapsedMs.toFixed(1)} ms reports; ${benchmark50k.count} events, ` +
+  `${benchmark50k.bytes} bytes, ${benchmark50k.elapsedMs.toFixed(1)} ms analytics, ` +
+  `${benchmark50k.reportBytes} report bytes, ${benchmark50k.reportsElapsedMs.toFixed(1)} ms reports`
 );
 
-console.log('Phase 3 Focus Review storage/runtime foundation harness: PASS');
+console.log('Phase 3 Focus Review storage, analytics, and report harness: PASS');

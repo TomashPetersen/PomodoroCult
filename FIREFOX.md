@@ -73,6 +73,21 @@ Phase 1 added platform-neutral product data without changing the current UI or p
 
 Legacy daily statistics remain intact and are not converted into synthetic timestamped events.
 
+## Ungated Focus Review and local reports
+
+Phase 3 raises local storage to version 4 and remains free for every user:
+
+- timestamped Review metrics use normalized `SessionEvent` records only and never add legacy aggregates;
+- `sessionEventLogStartedAt` exposes honest full/partial/none coverage instead of treating missing pre-log history as zero;
+- new Work events capture immutable completion date, start date/minute, and completion timezone offset; legacy events remain valid and are labeled inferred;
+- global nullable daily/weekly goals are independent of `FocusMode.sessionGoal` and save through the Firefox background mutation queue;
+- the large app window contains Review, while the popup only opens or focuses that existing window;
+- CSV exports selected real sessions with BOM, RFC-compatible quoting, and formula-injection neutralization;
+- Markdown exports the current Monday-to-Sunday week through today with escaped user task text;
+- downloads use local Blob URLs after a user click and perform no network request.
+
+JSON import/export includes goals, coverage, and available event metadata. Import remains queued, creates a safe-idle timer, and does not start Focus Music. No permission, dependency, donation, entitlement, licensing, manifest version, or application version change is part of Phase 3.
+
 ## Ungated Focus Modes
 
 Phase 2 adds free local Focus Mode workflows without feature gates or monetization:
@@ -153,12 +168,14 @@ Current release direction:
 - keep the existing timer, tasks, local statistics, app window, import/export, bilingual UI, notifications, and basic focus music free;
 - add donations only through a provider-agnostic external support URL after the payment route is manually verified;
 - keep payment data, provider SDKs, analytics, and hidden network calls out of the extension;
-- start Pro with local-only features such as advanced analytics review, per-task timer profiles, templates, reports, extra sound packs, and extra themes;
+- keep the shipped Phase 3 Review, goals, CSV, and Markdown free; any future Pro work must be additive, such as templates or extra sound/theme packs;
 - defer account licensing, cloud sync, and cross-device Pro state until there is a validated payment and support model.
 
 Completed implementation checkpoints:
 
 - Phase 0: `b7d2efa fix(firefox): persist focus music without app window`
 - Phase 1: `1a651de feat(storage): add focus modes and session events`
+- Phase 3 storage: `f867040 feat(storage): add focus review metadata and goals`
+- Phase 3 analytics: `91aa160 feat(analytics): add focus review and goals`
 
-The next checkpoint after the completed ungated Focus Modes phase is Focus Review (Phase 3) described in `EXECPLAN-v1.2.0.md`.
+The current checkpoint is final Phase 3 report, packaged-runtime, visual/accessibility, and independent QA closure described in `EXECPLAN-v1.2.0.md`. Phase 4 is not authorized.

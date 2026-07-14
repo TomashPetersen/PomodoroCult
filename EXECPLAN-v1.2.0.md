@@ -91,8 +91,8 @@ Observable outcome:
 - [x] 2026-07-12: Storage schema v3 and migration design implemented and tested.
 - [x] 2026-07-12: Session event log implemented and populated exactly once for new completed Work sessions.
 - [x] 2026-07-12 20:27 +04:00: Focus Modes implemented and verified without a paywall, limit, entitlement, donation, or monetization code.
-- [ ] 2026-07-11: Pending — Focus Review and goals implemented without a paywall.
-- [ ] 2026-07-11: Pending — CSV and Markdown reports implemented.
+- [x] 2026-07-15 00:14 +04:00: Focus Review and goals implemented without a paywall.
+- [x] 2026-07-15 00:14 +04:00: CSV and Markdown reports implemented; final packaged/runtime/visual and QA release gates remain tracked below.
 - [ ] 2026-07-11: Pending — feature gates and local developer entitlement simulator implemented.
 - [ ] 2026-07-11: Pending — public support and Pro purchase pages deployed.
 - [ ] 2026-07-11: Pending — payment provider KYC, international purchase, refund, and Russian payout tests completed.
@@ -112,6 +112,9 @@ Observable outcome:
 - [x] 2026-07-14 23:56 +04:00: Implemented the pure event-only Focus Review engine, exact calendar/coverage/comparison/threshold/tie formulas, global goal progress, large-window RU/EN Review UI, accessible formula help, and popup-to-singleton Review navigation.
 - [x] 2026-07-14 23:56 +04:00: Expanded the deterministic harness through analytics scenarios and 10,000/50,000-event fixtures. This run measured 2,734,510 bytes / 161.3 ms and 13,673,653 bytes / 798.4 ms; all four harnesses, diff check, TypeScript, and both builds pass.
 - [x] 2026-07-15 00:06 +04:00: QA-Agent independently approved the analytics/goals/UI milestone after title-fallback and progressbar accessibility fixes. Phase 3/10k/50k, Phase 2, concurrency, Focus Music, New York timezone/DST, diff, TypeScript, and both production-build gates pass.
+- [x] 2026-07-15 00:14 +04:00: Implemented local CSV and Markdown reports. CSV uses BOM, quoted RFC-style fields, CRLF records, stable chronological ordering, and formula-injection neutralization for every imported/user string. Markdown reports the current Monday-Sunday week through today, compares corresponding prior-week weekdays, and escapes user text before structure generation.
+- [x] 2026-07-15 00:14 +04:00: Expanded deterministic security, ordering, weekly-semantics, and scale coverage. The post-localization/security run measured 10,000 events at 2,734,510 storage bytes, 178.1 ms analytics, 1,220,265 report bytes, and 207.5 ms reports; 50,000 at 13,673,653 bytes, 882.6 ms analytics, 5,991,793 report bytes, and 1,222.8 ms reports.
+- [x] 2026-07-15 00:24 +04:00: QA-Agent independently approved reports after C1-control sanitization, Russian coverage/session localization, Free/Pro reconciliation, and post-fix byte evidence. All four harnesses, New York timezone/DST, diff, TypeScript, and both builds pass; final packaged runtime/visual/accessibility remains open.
 
 ## Surprises & Discoveries
 
@@ -898,3 +901,7 @@ Revision note 2026-07-14 23:46 +04:00: Recorded independent QA-Agent `APPROVE` a
 Revision note 2026-07-14 23:56 +04:00: Recorded the implemented pure Focus Review engine and full large-window goals UI, deterministic analytics coverage, and actual 10,000/50,000-event size/time evidence. All milestone quality gates pass; reports, packaged runtime/visual evidence, and independent analytics approval remain pending.
 
 Revision note 2026-07-15 00:06 +04:00: Recorded analytics milestone QA-Agent `APPROVE` after fixing newest-non-empty task-title selection and progressbar naming/value semantics. Independent checks included all four harnesses, a New York timezone/DST run, TypeScript, and both builds; reports and final packaged/visual/accessibility gates remain pending.
+
+Revision note 2026-07-15 00:14 +04:00: Recorded implemented secure CSV/Markdown generation, explicit week-to-date versus prior-week weekday semantics, local click-only Blob downloads, adversarial escaping/injection tests, actual 10,000/50,000 report size/time evidence, and roadmap/reviewer documentation reconciliation. Report QA and final packaged/visual/accessibility gates remain pending.
+
+Revision note 2026-07-15 00:24 +04:00: Recorded independent reports milestone `APPROVE` after C1 sanitization, readable RU/EN coverage and session units, complete Free/Pro/status reconciliation, and fresh exact scale evidence. The reports commit is ready; packaged downloads/runtime, final visual/keyboard/reduced-motion evidence, and unavailable optional lint remain explicit release gates.
