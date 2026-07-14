@@ -1,4 +1,4 @@
-import { BarChart3, Calendar, Trash2 } from 'lucide-react';
+import { BarChart3, Calendar, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { QUICK_STATS_PERIODS } from '../lib/constants';
 import { getStatsPeriodLabel, getTaskTitle, pluralizeSessions, t } from '../lib/i18n';
@@ -27,6 +27,7 @@ export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
   const statsView = useAppStore((state) => state.statsView);
   const setStatsView = useAppStore((state) => state.setStatsView);
   const openStatsChartWindow = useAppStore((state) => state.openStatsChartWindow);
+  const openAppWindow = useAppStore((state) => state.openAppWindow);
   const setStatsPeriod = useAppStore((state) => state.setStatsPeriod);
   const openStatsRangeModal = useAppStore((state) => state.openStatsRangeModal);
   const openStatsDeleteConfirm = useAppStore((state) => state.openStatsDeleteConfirm);
@@ -171,6 +172,22 @@ export const StatsScreen = ({ surface = 'popup' }: StatsScreenProps) => {
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isAppWindow) {
+              setStatsView('review');
+              return;
+            }
+            void openAppWindow({ screen: 'stats', statsView: 'review' });
+          }}
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200 dark:hover:bg-rose-950/60"
+          aria-label={locale === 'ru' ? 'Открыть обзор фокуса' : 'Open Focus Review'}
+        >
+          <Sparkles className="h-4 w-4" />
+          {locale === 'ru' ? 'Обзор фокуса' : 'Focus Review'}
+        </button>
       </header>
 
       <section className={cn('grid grid-cols-2 gap-3', isAppWindow ? 'mt-3' : 'mt-4')}>

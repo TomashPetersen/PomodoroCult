@@ -3,6 +3,7 @@ import { ArrowLeft, Calendar, HeartHandshake, Maximize2, Minimize2 } from 'lucid
 import { AppWindowTodayWidget } from './components/AppWindowTodayWidget';
 import { FocusMusicPanel } from './components/FocusMusicPanel';
 import { FocusModePanel } from './components/FocusModePanel';
+import { FocusReviewScreen } from './components/FocusReviewScreen';
 import { FocusSummaryCards } from './components/FocusSummaryCards';
 import { DONATION_URL, QUICK_STATS_PERIODS } from './lib/constants';
 import { getStatsPeriodLabel, t } from './lib/i18n';
@@ -74,6 +75,7 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
   const workspaceScreen = selectedScreen === 'stats' ? 'stats' : 'tasks';
   const hasDonationUrl = DONATION_URL.length > 0;
   const showChartPage = workspaceScreen === 'stats' && statsView === 'chart';
+  const showReviewPage = workspaceScreen === 'stats' && statsView === 'review';
   const backLabel = locale === 'ru' ? 'Назад' : 'Back';
 
   const registerAppWindow = useCallback(() => {
@@ -161,7 +163,13 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
           {t(locale, 'loading')}
         </div>
       ) : (
-        showChartPage ? (
+        showReviewPage ? (
+          <FocusReviewScreen
+            maximized={maximized}
+            onBack={() => setStatsView('list')}
+            onToggleMaximized={() => void toggleMaximized()}
+          />
+        ) : showChartPage ? (
           <main className="flex h-full w-full flex-col gap-4 overflow-hidden p-4">
             <header className="flex min-h-12 flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -341,7 +349,7 @@ const AppWindowShell = ({ hydrated }: { hydrated: boolean }) => {
         )
       )}
       <SettingsModal />
-      {showChartPage && <StatsRangeModal />}
+      {(showChartPage || showReviewPage) && <StatsRangeModal />}
       <ResetConfirmModal />
       <AppVersionBadge className="pointer-events-none absolute bottom-3 left-4 z-10" />
     </div>

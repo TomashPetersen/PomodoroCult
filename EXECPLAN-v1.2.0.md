@@ -109,6 +109,9 @@ Observable outcome:
 - [x] 2026-07-14 23:43 +04:00: Implemented the first Phase 3 milestone: storage v4 goals/coverage, quota-safe v3 transition, immutable cycle-local start capture, completion-local metadata, queued goals/import on both runtimes, and permission-free Chrome app-window recovery/focus/de-duplication from Chrome 109 onward.
 - [x] 2026-07-14 23:43 +04:00: Phase 3 storage foundation harness, all three Phase 2 regression harnesses, diff check, TypeScript, and Chrome/Firefox production builds pass after QA-requested forged-coverage, import-ordering, window-toggle, and Chrome 109 singleton fixes.
 - [x] 2026-07-14 23:46 +04:00: QA-Agent independently repeated all four harnesses, diff check, TypeScript, and both production builds, then returned `APPROVE` for the storage/runtime milestone. Packaged runtime remains a final Phase 3 gate.
+- [x] 2026-07-14 23:56 +04:00: Implemented the pure event-only Focus Review engine, exact calendar/coverage/comparison/threshold/tie formulas, global goal progress, large-window RU/EN Review UI, accessible formula help, and popup-to-singleton Review navigation.
+- [x] 2026-07-14 23:56 +04:00: Expanded the deterministic harness through analytics scenarios and 10,000/50,000-event fixtures. This run measured 2,734,510 bytes / 161.3 ms and 13,673,653 bytes / 798.4 ms; all four harnesses, diff check, TypeScript, and both builds pass.
+- [x] 2026-07-15 00:06 +04:00: QA-Agent independently approved the analytics/goals/UI milestone after title-fallback and progressbar accessibility fixes. Phase 3/10k/50k, Phase 2, concurrency, Focus Music, New York timezone/DST, diff, TypeScript, and both production-build gates pass.
 
 ## Surprises & Discoveries
 
@@ -891,3 +894,7 @@ Revision note 2026-07-14 23:32 +04:00: Recorded the implemented storage-v4/runti
 Revision note 2026-07-14 23:43 +04:00: Incorporated milestone QA findings: pre-v4 input can no longer forge coverage, both import/completion queue orders are asserted, Chrome and Firefox share the fullscreen-state contract, and Chrome 109 singleton recovery now uses a validated `storage.session` id instead of permission-dependent tab URLs. Repeated harness, static, and production-build gates pass; final milestone approval remains pending.
 
 Revision note 2026-07-14 23:46 +04:00: Recorded independent QA-Agent `APPROVE` after it repeated all four harnesses, diff check, TypeScript, and both production builds. The isolated storage/runtime milestone is ready to commit; packaged runtime stays in the final Phase 3 gate.
+
+Revision note 2026-07-14 23:56 +04:00: Recorded the implemented pure Focus Review engine and full large-window goals UI, deterministic analytics coverage, and actual 10,000/50,000-event size/time evidence. All milestone quality gates pass; reports, packaged runtime/visual evidence, and independent analytics approval remain pending.
+
+Revision note 2026-07-15 00:06 +04:00: Recorded analytics milestone QA-Agent `APPROVE` after fixing newest-non-empty task-title selection and progressbar naming/value semantics. Independent checks included all four harnesses, a New York timezone/DST run, TypeScript, and both builds; reports and final packaged/visual/accessibility gates remain pending.
