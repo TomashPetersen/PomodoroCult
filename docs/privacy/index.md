@@ -1,135 +1,67 @@
 # Pomodoro Cult Privacy Policy
 
-Last updated: 2026-05-28
+Last updated: 2026-11-06
 
-Pomodoro Cult is published by **Denis Volkov**.
+Pomodoro Cult is published by **Denis Volkov**. Contact: **dgvolkovhard@gmail.com**.
 
-Contact: **dgvolkovhard@gmail.com**
+## What the extension stores
 
-## Overview
+Pomodoro Cult keeps the following data in the browser's local extension storage:
 
-Pomodoro Cult is a browser extension that provides a focus timer, task selection, and local session statistics.
+- Timer state and settings, including focus audio, theme, and language preferences.
+- Tasks, their active or archived status, focus modes, and task-to-mode links.
+- Completed focus sessions, aggregate statistics, and focus goals.
+- Planning data present in the profile or imported from a backup, including task templates, focus plans, schedules, and run history.
+- Local recovery records used when the extension updates its storage format.
 
-The extension is designed to work locally in the browser. During normal operation, it does not send user data to a remote server.
+The extension uses this data to operate the timer, restore state, and show your tasks and statistics. The Chrome build keeps the workspace window ID in temporary browser session storage to find an already open window. The extension may read the browser interface language to choose a default language.
 
-## What data is stored
+When you export a backup or report, the extension creates a file from your local data. The exported file is saved through the browser. Import reads the backup file you select. You can remove extension data by uninstalling it. Exported copies are separate files you control.
 
-Pomodoro Cult stores the following information in the browser's local extension storage:
+## Data shared outside the extension
 
-- timer settings
-- task list
-- selected task
-- theme preference
-- language preference
-- timer state
-- local statistics about completed work sessions
+Pomodoro Cult does not send stored data to a server or use accounts, browsing history, analytics, advertising identifiers, or cloud sync. The extension plays bundled audio files.
 
-## Where data is stored
+The optional Donate link opens the project's Boosty page in a new browser tab when clicked. Boosty handles its own website and any payment under its privacy policy. Pomodoro Cult does not send stored data or payment details to Boosty.
 
-All stored extension data lives in the browser's local extension storage area on the user's device.
+## Browser permissions
 
-## What is not collected
-
-Pomodoro Cult does not collect:
-
-- account data
-- browsing history
-- analytics or telemetry
-- cloud backups
-- advertising identifiers
-- personal profile data
-
-## What is shared externally
-
-During normal operation, Pomodoro Cult does not transmit stored timer data, tasks, or statistics to an external backend service.
-
-## Browser language usage
-
-Pomodoro Cult may read the browser UI language to choose the default extension language automatically. This is only used for interface localization.
-
-## Permissions used
-
-Pomodoro Cult uses these Firefox permissions:
-
-- `storage` to save timer state, settings, tasks, theme, language preference, and local statistics between browser sessions
-- `notifications` to show a system notification when a timer completes
-- `alarms` to wake the Firefox background runtime at the correct timer completion time
-
-## Support
-
-If you have questions about this policy or the add-on, contact:
-
-**dgvolkovhard@gmail.com**
-
-## Policy updates
-
-If this extension's data behavior changes, this page will be updated before or alongside the corresponding release.
+- `storage` lets Pomodoro Cult save and restore extension data locally in Chrome and Firefox.
+- `alarms` lets the browser wake the extension at the timer deadline in Chrome and Firefox.
+- `notifications` lets the extension show a system notification when a cycle finishes in Chrome and Firefox.
+- `offscreen` lets Chrome play focus sounds and the completion chime in a hidden extension page.
 
 ---
 
 # Политика конфиденциальности Pomodoro Cult
 
-Дата обновления: 2026-05-28
+Дата обновления: 2026-11-06
 
-Pomodoro Cult публикуется **Denis Volkov**.
+Pomodoro Cult публикуется **Denis Volkov**. Контакт: **dgvolkovhard@gmail.com**.
 
-Контакт: **dgvolkovhard@gmail.com**
-
-## Общее описание
-
-Pomodoro Cult — это браузерное расширение с таймером фокуса, выбором задач и локальной статистикой сессий.
-
-Расширение рассчитано на локальную работу в браузере. Во время обычного использования оно не отправляет пользовательские данные на удаленный сервер.
-
-## Какие данные сохраняются
+## Какие данные сохраняет расширение
 
 Pomodoro Cult сохраняет в локальном хранилище расширения:
 
-- настройки таймера
-- список задач
-- выбранную задачу
-- тему интерфейса
-- языковую настройку
-- состояние таймера
-- локальную статистику завершенных рабочих сессий
+- Состояние и настройки таймера, включая фоновый звук, тему и язык.
+- Задачи, их активный или архивный статус, режимы фокуса и связи задач с режимами.
+- Завершённые сессии фокуса, сводную статистику и цели.
+- Данные планирования, которые уже есть в профиле или восстановлены из резервной копии, включая шаблоны задач, планы, расписания и историю запусков.
+- Записи восстановления, которые нужны при обновлении формата хранилища.
 
-## Где хранятся данные
+Расширение использует эти данные, чтобы управлять таймером, восстанавливать его состояние и показывать задачи и статистику. В Chrome расширение хранит идентификатор рабочего окна во временном хранилище сеанса браузера, чтобы находить уже открытое окно. Расширение может прочитать язык интерфейса браузера, чтобы выбрать язык по умолчанию.
 
-Все данные расширения хранятся в локальном хранилище браузерного расширения на устройстве пользователя.
+При экспорте расширение создаёт файл резервной копии или отчёта из локальных данных. Файл сохраняется через браузер. При импорте расширение читает выбранный вами файл резервной копии. Локальные данные удаляются вместе с расширением. Выгруженные копии хранятся отдельно, ими управляете вы.
 
-## Что не собирается
+## Какие данные передаются наружу
 
-Pomodoro Cult не собирает:
+Pomodoro Cult не отправляет сохранённые данные на сервер, не использует аккаунты, историю посещений, аналитику, рекламные идентификаторы и облачную синхронизацию. Фоновые звуки воспроизводятся из файлов расширения.
 
-- данные аккаунта
-- историю браузера
-- аналитику или телеметрию
-- облачные резервные копии
-- рекламные идентификаторы
-- персональные профильные данные
+При нажатии на кнопку «Донат» страница проекта на Boosty открывается в новой вкладке. Сайт и оплату обслуживает Boosty по своей политике конфиденциальности. Pomodoro Cult не передаёт на Boosty сохранённые или платёжные данные.
 
-## Что передается наружу
+## Разрешения браузера
 
-Во время обычной работы Pomodoro Cult не передает сохраненные данные таймера, задачи или статистику во внешний backend-сервис.
-
-## Использование языка браузера
-
-Pomodoro Cult может читать язык интерфейса браузера, чтобы автоматически выбрать язык расширения по умолчанию. Это используется только для локализации интерфейса.
-
-## Используемые permissions
-
-Pomodoro Cult использует в Firefox следующие permissions:
-
-- `storage` для сохранения состояния таймера, настроек, задач, темы, языка и локальной статистики между сессиями браузера
-- `notifications` для показа системного уведомления после завершения таймера
-- `alarms` для пробуждения Firefox background runtime в точный момент завершения таймера
-
-## Поддержка
-
-Если у вас есть вопросы по этой политике или по самому расширению, напишите:
-
-**dgvolkovhard@gmail.com**
-
-## Обновления политики
-
-Если поведение расширения в части данных изменится, эта страница будет обновлена до соответствующего релиза или одновременно с ним.
+- `storage` позволяет сохранять и восстанавливать локальные данные расширения в Chrome и Firefox.
+- `alarms` позволяет браузеру разбудить расширение к сроку завершения таймера в Chrome и Firefox.
+- `notifications` позволяет показать системное уведомление после завершения цикла в Chrome и Firefox.
+- `offscreen` позволяет Chrome воспроизводить фоновые звуки и сигнал таймера в скрытой странице расширения.
